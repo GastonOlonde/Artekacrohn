@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Fichiers de build Android
+/app/build/
+/app/build/intermediates/
+/app/build/outputs/
+*.apk
