@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Arteka-crohn</string>
+    <string name="preprocess">Preprocess:</string>
+    <string name="_0_ms">0 ms</string>
+    <string name="inference">Inference:</string>
+    <string name="postprocess">Postprocess:</string>
+    <string name="total">Total:</string>
+    <string name="threads_cpu">Threads CPU:</string>
+    <string name="_2">2</string>
+</resources>
