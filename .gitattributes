@@ -1,0 +1,8 @@
+*.blend filter=lfs diff=lfs merge=lfs -text
+\# filter=lfs diff=lfs merge=lfs -text
+Exemples filter=lfs diff=lfs merge=lfs -text
+de filter=lfs diff=lfs merge=lfs -text
+formats filter=lfs diff=lfs merge=lfs -text
+volumineux filter=lfs diff=lfs merge=lfs -text
+*.psd filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text
