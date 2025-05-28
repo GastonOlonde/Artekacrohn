@@ -2,7 +2,8 @@ package com.example.arteka_crohn
 
 data class SegmentationResult(
     val box: Output0,
-    val mask: Array<FloatArray>
+    val mask: Array<FloatArray>,
+    val conf: Float,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

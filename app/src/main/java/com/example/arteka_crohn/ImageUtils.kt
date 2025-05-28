@@ -4,6 +4,11 @@ import kotlin.math.exp
 
 object ImageUtils {
 
+    fun Array<FloatArray>.fill(value: Float) {
+        for (row in this) {
+            row.fill(value)
+        }
+    }
 /// <summary>
 /// Clones a list of 2D arrays.
 /// </summary>
@@ -14,25 +19,24 @@ object ImageUtils {
 /// <summary>
 /// Scales a 2D array (mask) to the target width and height.
 /// </summary>
-    fun Array<FloatArray>.scaleMask(targetWidth: Int, targetHeight: Int): Array<FloatArray> {
-        val originalHeight = this.size
-        val originalWidth = this[0].size
+fun Array<FloatArray>.scaleMask(newHeight: Int, newWidth: Int): Array<FloatArray> {
+    val originalHeight = this.size
+    if (originalHeight == 0) return Array(newHeight) { FloatArray(newWidth) }
+    val originalWidth = this[0].size
+    if (originalWidth == 0) return Array(newHeight) { FloatArray(newWidth) }
 
-        val xRatio = (originalWidth shl 16) / targetWidth
-        val yRatio = (originalHeight shl 16) / targetHeight
+    val scaled = Array(newHeight) { FloatArray(newWidth) }
 
-        val output = Array(targetHeight) { FloatArray(targetWidth) }
-
-        for (y in 0 until targetHeight) {
-            val origY = (y * yRatio) ushr 16
-            for (x in 0 until targetWidth) {
-                val origX = (x * xRatio) ushr 16
-                output[y][x] = this[origY][origX]
-            }
+    // Implémentation simpliste (plus proche voisin), tu auras besoin d'une meilleure interpolation
+    for (y_new in 0 until newHeight) {
+        for (x_new in 0 until newWidth) {
+            val y_old = (y_new * originalHeight / newHeight.toFloat()).toInt().coerceIn(0, originalHeight - 1)
+            val x_old = (x_new * originalWidth / newWidth.toFloat()).toInt().coerceIn(0, originalWidth - 1)
+            scaled[y_new][x_new] = this[y_old][x_old]
         }
-
-        return output
     }
+    return scaled
+}
 
 
     fun Array<FloatArray>.toMask(): Array<IntArray> =

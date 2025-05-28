@@ -11,6 +11,7 @@ import com.example.arteka_crohn.MetaData.extractNamesFromLabelFile
 import com.example.arteka_crohn.MetaData.extractNamesFromMetadata
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegateFactory
 import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.common.ops.CastOp
 import org.tensorflow.lite.support.common.ops.NormalizeOp
@@ -18,6 +19,7 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.nio.ByteBuffer
+
 
 class InstanceSegmentation(
     context: Context,
@@ -40,36 +42,58 @@ class InstanceSegmentation(
         .add(CastOp(INPUT_IMAGE_TYPE))
         .build()
 
+    private var gpuDelegateInstance: org.tensorflow.lite.gpu.GpuDelegate? = null
+    private var nnApiDelegateInstance: org.tensorflow.lite.nnapi.NnApiDelegate? = null
+
     init {
         try {
-            // Charger le modèle avec GPU Delegate si possible
-            val options = Interpreter.Options().apply {
-                var delegateApplied = false
+            val options = Interpreter.Options()
+            var delegateAppliedInfo = "No delegate tried or fallback to CPU."
 
-                try {
-                    // Vérifie si la classe GpuDelegate est présente pour éviter ClassNotFoundException
-                    // sur les appareils sans support Play Services ou avec une version TFLite GPU non packagée
-                    Class.forName("org.tensorflow.lite.gpu.GpuDelegate") // Good check
-                    // Attempt to load GpuDelegateFactory$Options as well to be more robust
-                    // This is optional but can help diagnose if GpuDelegateFactory$Options is the specific missing class
-                    Class.forName("org.tensorflow.lite.gpu.GpuDelegateFactory\$Options")
+            // Tentative 1: GPU Delegate avec options
+            try {
+                val delegateOptions = org.tensorflow.lite.gpu.GpuDelegateFactory.Options().apply {
+                    setPrecisionLossAllowed(true) // Important si ton modèle peut tourner en FP16 sur GPU
 
-                    val gpuDelegate = org.tensorflow.lite.gpu.GpuDelegate()
-                    addDelegate(gpuDelegate)
-                    Log.d("TFLite", "GPU Delegate applied.")
-                    delegateApplied = true
-                } catch (e: Throwable) { // Catch Throwable to include Errors like NoClassDefFoundError
-                    Log.d("TFLite", "GPU Delegate not available or failed to apply.", e)
+                    setForceBackend(GpuDelegateFactory.Options.GpuBackend.OPENCL)
                 }
+                gpuDelegateInstance = org.tensorflow.lite.gpu.GpuDelegate(delegateOptions)
 
-                setUseXNNPACK(true)
-                //setUseNNAPI(true)
-                setNumThreads(2)
-
+                options.addDelegate(gpuDelegateInstance)
+                delegateAppliedInfo = "Attempting to use GPU Delegate."
+                // Le vrai succès sera loggué par TFLite lui-même lors de l'init de l'Interpreter
+            } catch (e: Throwable) {
+                Log.w("TFLite_GPU", "GPU Delegate creation/configuration failed. Falling back.", e)
+                gpuDelegateInstance = null // Assure-toi qu'il est null s'il échoue
+                // Ne pas s'arrêter ici, on essaiera NNAPI ou CPU
             }
 
+            // Tentative 2: NNAPI Delegate (si GPU n'est pas explicitement voulu ou a échoué)
+            if (gpuDelegateInstance == null) {
+                try {
+                    val nnApiDelegate = org.tensorflow.lite.nnapi.NnApiDelegate()
+                    options.addDelegate(nnApiDelegate)
+
+                    delegateAppliedInfo = "NNAPI Delegate configured. GPU delegate failed or was not attempted."
+                    Log.d("TFLite", "NNAPI delegate added.");
+                } catch (e: Exception) {
+                    Log.w("TFLite_NNAPI", "NNAPI Delegate not available or failed: ${e.message}")
+                    // Tombera sur CPU + XNNPACK
+                    delegateAppliedInfo = "GPU and NNAPI delegates failed or not available. Using CPU."
+                }
+            }
+
+
+            // XNNPACK pour CPU (toujours une bonne idée en fallback ou si aucun delegate n'est utilisé)
+            options.setUseXNNPACK(true)
+            // options.setNumThreads(4) // Teste avec plus de threads si tu es souvent sur CPU
+
+            Log.d("TFLiteConfig", "Delegate status before interpreter init: $delegateAppliedInfo")
+
             val model = FileUtil.loadMappedFile(context, modelPath)
-            interpreter = Interpreter(model, options)
+            interpreter = Interpreter(model, options) // C'est ICI que le delegate est VRAIMENT appliqué
+
+            Log.i("TFLite", "Interpreter initialized. Check Logcat for TFLite's own delegate messages.")
 
             labels.addAll(extractNamesFromMetadata(model))
             if (labels.isEmpty()) {
@@ -118,8 +142,11 @@ class InstanceSegmentation(
         }
     }
 
+
     fun close() {
         interpreter.close()
+        gpuDelegateInstance?.close()
+        nnApiDelegateInstance?.close()
     }
 
     fun invoke(frame: Bitmap) {
@@ -135,7 +162,7 @@ class InstanceSegmentation(
         val imageBuffer = preProcess(frame)
         val t1 = SystemClock.uptimeMillis()
         val preProcessTime = t1 - t0
-        Log.d("SystemClockProfiler", "Preprocess time: $preProcessTime ms")
+        //Log.d("SystemClockProfiler", "Preprocess time: $preProcessTime ms")
 
         val coordinatesBuffer = TensorBuffer.createFixedSize(
             intArrayOf(1, numChannel, numElements),
@@ -155,7 +182,7 @@ class InstanceSegmentation(
         interpreter.runForMultipleInputsOutputs(imageBuffer, outputBuffer)
         val t3 = SystemClock.uptimeMillis()
         val interfaceTime = t3 - t2
-        Log.d("SystemClockProfiler", "Inference time: $interfaceTime ms")
+        //Log.d("SystemClockProfiler", "Inference time: $interfaceTime ms")
 
         val t4 = SystemClock.uptimeMillis()
 
@@ -165,25 +192,26 @@ class InstanceSegmentation(
             return
         }
         val t4b = SystemClock.uptimeMillis()
-        Log.d("SystemClockProfiler", "bestBox time: ${t4b - t4a} ms")
+        //Log.d("SystemClockProfiler", "bestBox time: ${t4b - t4a} ms")
 
         val t4c = SystemClock.uptimeMillis()
         val maskProto = reshapeMaskOutput(maskProtoBuffer.floatArray)
         val t4d = SystemClock.uptimeMillis()
-        Log.d("SystemClockProfiler", "reshapeMaskOutput time: ${t4d - t4c} ms")
+        // Log.d("SystemClockProfiler", "reshapeMaskOutput time: ${t4d - t4c} ms")
 
         val t4e = SystemClock.uptimeMillis()
         val segmentationResults = bestBoxes.map {
             SegmentationResult(
                 box = it,
-                mask = getFinalMask(it, maskProto)
+                mask = getFinalMask(it, maskProto),
+                conf = it.cnf,
             )
         }
         val t4f = SystemClock.uptimeMillis()
-        Log.d("SystemClockProfiler", "Final mask generation time: ${t4f - t4e} ms")
+        // Log.d("SystemClockProfiler", "Final mask generation time: ${t4f - t4e} ms")
 
         val postProcessTime = t4f - t4
-        Log.d("SystemClockProfiler", "Postprocess total time: $postProcessTime ms")
+        // Log.d("SystemClockProfiler", "Postprocess total time: $postProcessTime ms")
 
         instanceSegmentationListener.onDetect(
             interfaceTime = interfaceTime,
@@ -332,7 +360,7 @@ class InstanceSegmentation(
         private const val INPUT_STANDARD_DEVIATION = 255f
         private val INPUT_IMAGE_TYPE = DataType.FLOAT32
         private val OUTPUT_IMAGE_TYPE = DataType.FLOAT32
-        private const val CONFIDENCE_THRESHOLD = 0.3F
+        private const val CONFIDENCE_THRESHOLD = 0.45F
         private const val IOU_THRESHOLD = 0.5F
     }
 }
