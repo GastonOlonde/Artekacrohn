@@ -186,22 +186,18 @@ class InstanceSegmentation(
 
         val t4 = SystemClock.uptimeMillis()
 
-        val t4a = SystemClock.uptimeMillis()
+        // Traitement des boîtes détectées
         val bestBoxes = bestBox(coordinatesBuffer.floatArray) ?: run {
             instanceSegmentationListener.onEmpty()
             return
         }
-        val t4b = SystemClock.uptimeMillis()
-        //Log.d("SystemClockProfiler", "bestBox time: ${t4b - t4a} ms")
-
-        val t4c = SystemClock.uptimeMillis()
+        
+        // Traitement des masques
         val maskProto = reshapeMaskOutput(maskProtoBuffer.floatArray)
-        val t4d = SystemClock.uptimeMillis()
-        // Log.d("SystemClockProfiler", "reshapeMaskOutput time: ${t4d - t4c} ms")
-
-        val t4e = SystemClock.uptimeMillis()
+        
+        // Création des résultats de segmentation
         val segmentationResults = bestBoxes.map {
-            SegmentationResult(
+            ApiSegmentationResult(
                 box = it,
                 mask = getFinalMask(it, maskProto),
                 conf = it.cnf,
@@ -349,7 +345,7 @@ class InstanceSegmentation(
         fun onEmpty()
         fun onDetect(
             interfaceTime: Long,
-            results: List<SegmentationResult>,
+            results: List<ApiSegmentationResult>,
             preProcessTime: Long,
             postProcessTime: Long
         )

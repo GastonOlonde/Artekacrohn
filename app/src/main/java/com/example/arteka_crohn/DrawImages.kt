@@ -53,7 +53,7 @@ class DrawImages(private val context: Context) {
     }
 
     fun invoke(
-        results: List<SegmentationResult>,
+        results: List<ApiSegmentationResult>,
         contourThickness: Int = DEFAULT_CONTOUR_THICKNESS_PIXELS,
         screenWidth: Int = 0,
         screenHeight: Int = 0,
@@ -189,7 +189,7 @@ class DrawImages(private val context: Context) {
     private fun drawMorphologicalContourAndText(
         bitmap: Bitmap,
         canvas: Canvas,
-        segmentationResult: SegmentationResult, // Utilise TA classe SegmentationResult
+        segmentationResult: ApiSegmentationResult, // Utilise TA classe SegmentationResult
         contourColorResId: Int,
         targetContourThickness: Int,
         maskWidth: Int,    // Dimensions du masque d'origine

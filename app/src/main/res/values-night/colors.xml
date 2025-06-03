@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="text">#FAFAFA</color>
+    <color name="list_item_background">#FF333333</color>
+    <color name="overlay_gray">#C1807A7A</color>
+</resources>

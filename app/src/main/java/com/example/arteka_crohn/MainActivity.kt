@@ -4,20 +4,20 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.graphics.Bitmap
 import android.os.Bundle
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
 import android.util.Log
 import android.view.View // Import pour View.GONE et View.VISIBLE
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
@@ -27,10 +27,17 @@ import androidx.lifecycle.lifecycleScope
 import com.example.arteka_crohn.databinding.ActivityMainBinding
 import com.google.firebase.auth.FirebaseAuth
 import java.util.concurrent.Executors
+import com.example.arteka_crohn.ApiSegmentationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext // Import pour withContext
 
+
+/**
+ * MainActivity est responsable de l'interface utilisateur principale et de la coordination
+ * entre les différents composants de l'application.
+ * Elle délègue les responsabilités spécifiques à des classes dédiées.
+ */
 class MainActivity :
         AppCompatActivity(),
         ProfileDialogFragment.LogoutListener,
@@ -40,15 +47,24 @@ class MainActivity :
     private val segmentationLock = Any()
 
     private lateinit var binding: ActivityMainBinding
-    private var instanceSegmentation: InstanceSegmentation? =
-            null // Rend le nullable pour l'initialisation différée
+    private var instanceSegmentation: InstanceSegmentation? = null // Initialisation différée
     private lateinit var drawImages: DrawImages
+
     private lateinit var previewView: PreviewView
+
     private var cameraProvider: ProcessCameraProvider? = null // Pour le garder en référence
 
     // Executor pour l'analyse d'image (peut être partagé ou réutilisé)
     private val imageAnalysisExecutor = Executors.newSingleThreadExecutor()
 
+    // Nom du modèle sélectionné (persistant durant le cycle de vie de l'activité)
+    private var selectedModelName: String = "yolo11v1_float16.tflite" // Valeur par défaut
+    private var lastLoadedModelName: String = selectedModelName
+
+    // Gestion du résultat de la sélection du modèle (plus nécessaire, navigation par bottomBar)
+    // private val modelSelectionLauncher = ... (supprimé car plus utilisé)
+    
+    // État de l'activité
     @Volatile private var isChangingActivity = false
 
     /**
@@ -110,8 +126,8 @@ class MainActivity :
                     true
                 }
                 R.id.action_models -> {
-                    cleanupSegmentation()
-                    startActivity(Intent(this, ModelSelectionActivity::class.java))
+                    val intent = Intent(this, ModelSelectionActivity::class.java)
+                    startActivity(intent)
                     overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
                     finish()
                     true
@@ -136,30 +152,31 @@ class MainActivity :
         binding.progressBar.visibility =
                 View.VISIBLE // Suppose que tu as un progressBar dans ton layout
 
-        // Lance l'initialisation du modèle en arrière-plan
+        // Initialise le modèle sélectionné en arrière-plan
+        initializeSegmentation()
+    }
+
+    // Fonction pour initialiser InstanceSegmentation avec le modèle choisi
+    private fun initializeSegmentation() {
+        binding.progressBar.visibility = View.VISIBLE
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                Log.d("MainActivity", "Starting InstanceSegmentation initialization...")
-                val segmenter =
-                        InstanceSegmentation(
-                                context = applicationContext,
-                                modelPath =
-                                        "models/yolo11v1_float16.tflite", // Assure-toi que ce modèle est
-                                // dans assets
-                                labelPath = "labels/labels.txt", // Et celui-ci aussi
-                                instanceSegmentationListener = this@MainActivity,
-                                message = { msg ->
-                                    // Le Toast doit s'exécuter sur le Main thread
-                                    lifecycleScope.launch(Dispatchers.Main) {
-                                        Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT)
-                                                .show()
-                                    }
-                                }
-                        )
-                instanceSegmentation = segmenter // Assigne une fois initialisé
+                Log.d("MainActivity", "Starting InstanceSegmentation initialization with $selectedModelName ...")
+                val segmenter = InstanceSegmentation(
+                    context = applicationContext,
+                    modelPath = "models/$selectedModelName",
+                    labelPath = "labels/labels.txt",
+                    instanceSegmentationListener = this@MainActivity,
+                    message = { msg ->
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+                instanceSegmentation = segmenter
                 Log.d("MainActivity", "InstanceSegmentation initialized successfully.")
                 withContext(Dispatchers.Main) {
-                    binding.progressBar.visibility = View.GONE // Cache le ProgressBar
+                    binding.progressBar.visibility = View.GONE
                     checkPermissionAndStartCamera()
                 }
             } catch (e: Exception) {
@@ -167,13 +184,10 @@ class MainActivity :
                 withContext(Dispatchers.Main) {
                     binding.progressBar.visibility = View.GONE
                     Toast.makeText(
-                                    applicationContext,
-                                    "Failed to load model: ${e.message}",
-                                    Toast.LENGTH_LONG
-                            )
-                            .show()
-                    // Tu pourrais vouloir fermer l'activité ou afficher un message d'erreur
-                    // permanent
+                        applicationContext,
+                        "Failed to load model: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
@@ -315,9 +329,9 @@ class MainActivity :
                 }
             }
 
-    override fun onError(error: String) {
+    override fun onError(onError: String) {
         runOnUiThread {
-            Toast.makeText(applicationContext, error, Toast.LENGTH_SHORT).show()
+            Toast.makeText(applicationContext, onError, Toast.LENGTH_SHORT).show()
             binding.ivTop.setImageResource(0)
         }
     }
@@ -325,7 +339,7 @@ class MainActivity :
     @SuppressLint("SetTextI18n")
     override fun onDetect(
             interfaceTime: Long,
-            results: List<SegmentationResult>,
+            results: List<ApiSegmentationResult>,
             preProcessTime: Long,
             postProcessTime: Long
     ) {

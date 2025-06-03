@@ -1,6 +1,6 @@
 package com.example.arteka_crohn
 
-data class SegmentationResult(
+data class ApiSegmentationResult(
     val box: Output0,
     val mask: Array<FloatArray>,
     val conf: Float,
@@ -9,7 +9,7 @@ data class SegmentationResult(
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as SegmentationResult
+        other as ApiSegmentationResult
 
         return mask.contentDeepEquals(other.mask)
     }
