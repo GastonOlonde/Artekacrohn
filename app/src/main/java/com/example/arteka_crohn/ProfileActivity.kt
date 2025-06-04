@@ -7,6 +7,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.auth.FirebaseAuth
+import com.example.arteka_crohn.segmentation.InstanceSegmentation
 
 class ProfileActivity : AppCompatActivity() {
     private var instanceSegmentation: InstanceSegmentation? = null

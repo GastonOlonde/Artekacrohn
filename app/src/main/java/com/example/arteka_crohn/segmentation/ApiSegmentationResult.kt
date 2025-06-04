@@ -1,4 +1,6 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.segmentation
+
+import com.example.arteka_crohn.Output0
 
 data class ApiSegmentationResult(
     val box: Output0,

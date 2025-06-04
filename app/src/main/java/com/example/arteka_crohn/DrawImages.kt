@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.set
+import com.example.arteka_crohn.segmentation.ApiSegmentationResult
 
 // IMPORTANT : Assure-toi que les types et noms de champs utilisés ci-dessous
 // (comme segmentationResult.mask, segmentationResult.box.x1, segmentationResult.box.clsName, etc.)
@@ -47,9 +48,9 @@ class DrawImages(private val context: Context) {
     )
 
     companion object {
-        private const val DEFAULT_CONTOUR_THICKNESS_PIXELS = 2 // Augmentation de l'épaisseur par défaut
+        private const val DEFAULT_CONTOUR_THICKNESS_PIXELS = 1 // Augmentation de l'épaisseur par défaut
         private const val BINARIZATION_THRESHOLD = 0.5f
-        private const val MIN_CONTOUR_PIXEL_SIZE = 2 // Taille minimale des pixels du contour
+        private const val MIN_CONTOUR_PIXEL_SIZE = 1 // Taille minimale des pixels du contour
     }
 
     fun invoke(

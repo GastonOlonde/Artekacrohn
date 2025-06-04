@@ -1,4 +1,4 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.segmentation
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -19,6 +19,10 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.nio.ByteBuffer
+import com.example.arteka_crohn.MetaData.TEMP_CLASSES
+import com.example.arteka_crohn.Output0
+import com.example.arteka_crohn.segmentation.ApiSegmentationResult
+import kotlin.collections.map
 
 
 class InstanceSegmentation(
@@ -99,7 +103,7 @@ class InstanceSegmentation(
             if (labels.isEmpty()) {
                 if (labelPath == null) {
                     message("Model not contains metadata, provide LABELS_PATH in Constants.kt")
-                    labels.addAll(MetaData.TEMP_CLASSES)
+                    labels.addAll(TEMP_CLASSES)
                 } else {
                     labels.addAll(extractNamesFromLabelFile(context, labelPath))
                 }
@@ -338,17 +342,6 @@ class InstanceSegmentation(
         val tensorImage = TensorImage(INPUT_IMAGE_TYPE)
         tensorImage.load(resizedBitmap)
         return arrayOf(imageProcessor.process(tensorImage).buffer)
-    }
-
-    interface InstanceSegmentationListener {
-        fun onError(error: String)
-        fun onEmpty()
-        fun onDetect(
-            interfaceTime: Long,
-            results: List<ApiSegmentationResult>,
-            preProcessTime: Long,
-            postProcessTime: Long
-        )
     }
 
     companion object {
