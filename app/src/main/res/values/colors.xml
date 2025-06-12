@@ -2,6 +2,7 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="background">#FFFFFF</color>
 
     <!--    Box colors-->
     <color name="overlay_blue">#3F51B5</color>
@@ -18,5 +19,6 @@
     <color name="colorPrimary">#3366FF</color>
     <color name="colorSecondary">#8395DD</color>
     <color name="text">#222222</color>
+    <color name="text_light">#FFFFFF</color>
     <color name="list_item_background">#FFFFFFFF</color>
 </resources>

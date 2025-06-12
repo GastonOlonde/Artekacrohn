@@ -45,8 +45,10 @@
             android:background="@drawable/edit_text_background"
             android:inputType="textEmailAddress"
             android:textSize="16sp"
-            android:layout_marginBottom="16dp"
-            android:autofillHints="emailAddress" />
+            android:autofillHints="emailAddress"
+            android:importantForAutofill="yes"
+            android:saveEnabled="true"
+            android:imeOptions="actionNext" />
 
         <TextView
             android:id="@+id/textViewEmailError"
@@ -61,6 +63,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
+            android:layout_marginTop="16dp"
             android:background="@drawable/edit_text_background">
 
             <EditText
@@ -73,7 +76,10 @@
                 android:background="@null"
                 android:inputType="textPassword"
                 android:textSize="16sp"
-                android:autofillHints="password" />
+                android:autofillHints="password"
+                android:importantForAutofill="yes"
+                android:saveEnabled="true"
+                android:imeOptions="actionDone" />
 
             <ImageView
                 android:id="@+id/imageViewTogglePassword"

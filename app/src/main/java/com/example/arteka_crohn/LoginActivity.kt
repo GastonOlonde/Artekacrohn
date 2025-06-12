@@ -13,6 +13,7 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.google.firebase.auth.FirebaseAuth
@@ -61,24 +62,7 @@ class LoginActivity : AppCompatActivity() {
         forgotPasswordButton.setOnClickListener {
             val email = emailEditText.text.toString().trim()
             if (email.isEmpty()) {
-                // Afficher un dialog pour saisir l'email
-                val input = EditText(this)
-                input.inputType = android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
-                input.hint = "Entrez votre adresse e-mail"
-                androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("Réinitialiser le mot de passe")
-                    .setMessage("Veuillez saisir votre adresse e-mail pour recevoir un lien de réinitialisation.")
-                    .setView(input)
-                    .setPositiveButton("Envoyer") { _, _ ->
-                        val enteredEmail = input.text.toString().trim()
-                        if (enteredEmail.isNotEmpty()) {
-                            sendPasswordReset(enteredEmail)
-                        } else {
-                            showAlertDialog("Erreur", "Veuillez entrer une adresse e-mail valide.")
-                        }
-                    }
-                    .setNegativeButton("Annuler", null)
-                    .show()
+                PasswordResetBottomSheetDialogFragment.newInstance().show(supportFragmentManager, "PasswordResetDialog")
             } else {
                 sendPasswordReset(email)
             }
@@ -163,7 +147,7 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun sendPasswordReset(email: String) {
+    internal fun sendPasswordReset(email: String) {
         progressBar.visibility = View.VISIBLE
         progressBar.startAnimation(spinnerAnimation)
         auth.sendPasswordResetEmail(email)

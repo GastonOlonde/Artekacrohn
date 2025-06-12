@@ -36,6 +36,6 @@
         android:textStyle="bold"
         android:textColor="@android:color/white"
         android:backgroundTint="@color/design_default_color_error"
-        android:background="@drawable/bg_logout_btn"
+        android:background="@drawable/primary_button_background"
         android:layout_marginBottom="8dp"/>
 </LinearLayout>

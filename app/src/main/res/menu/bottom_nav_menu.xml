@@ -3,13 +3,16 @@
     <item
         android:id="@+id/action_models"
         android:icon="@drawable/ic_baseline_view_module_24"
-        android:title="Modèles"/>
+        android:title="Modèles"
+        android:background="@color/transparent"/>
     <item
         android:id="@+id/action_camera"
         android:icon="@drawable/ic_baseline_photo_camera_24"
-        android:title="Caméra"/>
+        android:title="Caméra"
+        android:background="@color/transparent"/>
     <item
         android:id="@+id/action_profile"
         android:icon="@drawable/ic_baseline_person_24"
-        android:title="Profil"/>
+        android:title="Profil"
+        android:background="@color/transparent"/>
 </menu>
