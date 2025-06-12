@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.set
 import com.example.arteka_crohn.segmentation.ApiSegmentationResult
+import com.example.arteka_crohn.segmentation.config.SegmentationConfig
 
 // IMPORTANT : Assure-toi que les types et noms de champs utilisés ci-dessous
 // (comme segmentationResult.mask, segmentationResult.box.x1, segmentationResult.box.clsName, etc.)
@@ -47,15 +48,9 @@ class DrawImages(private val context: Context) {
         R.color.overlay_orange
     )
 
-    companion object {
-        private const val DEFAULT_CONTOUR_THICKNESS_PIXELS = 1 // Augmentation de l'épaisseur par défaut
-        private const val BINARIZATION_THRESHOLD = 0.5f
-        private const val MIN_CONTOUR_PIXEL_SIZE = 1 // Taille minimale des pixels du contour
-    }
-
     fun invoke(
         results: List<ApiSegmentationResult>,
-        contourThickness: Int = DEFAULT_CONTOUR_THICKNESS_PIXELS,
+        contourThickness: Int = SegmentationConfig.DEFAULT_CONTOUR_THICKNESS_PIXELS,
         screenWidth: Int = 0,
         screenHeight: Int = 0,
         scaleFactor: Float = 0.5f // Nouveau paramètre pour contrôler la qualité
@@ -202,7 +197,7 @@ class DrawImages(private val context: Context) {
         val probabilityMask = segmentationResult.mask
         val contourColor = ContextCompat.getColor(context, contourColorResId)
 
-        val binaryOriginalMask = binarizeMask(probabilityMask, maskWidth, maskHeight, BINARIZATION_THRESHOLD)
+        val binaryOriginalMask = binarizeMask(probabilityMask, maskWidth, maskHeight, SegmentationConfig.BINARIZATION_THRESHOLD)
         val dilated1pxMask = dilateBinaryMask(binaryOriginalMask, maskWidth, maskHeight)
 
         // --- Appliquer un flou gaussien pour adoucir le contour ---
@@ -230,7 +225,7 @@ class DrawImages(private val context: Context) {
         
         // Calculer une taille de contour adaptée à l'écran
         // Plus l'écran est grand, plus le contour doit être épais pour rester visible
-        val contourPixelSize = (MIN_CONTOUR_PIXEL_SIZE * scaleX).toInt().coerceAtLeast(MIN_CONTOUR_PIXEL_SIZE)
+        val contourPixelSize = (SegmentationConfig.MIN_CONTOUR_PIXEL_SIZE * scaleX).toInt().coerceAtLeast(SegmentationConfig.MIN_CONTOUR_PIXEL_SIZE)
         
         // Rendre le contour plus visible en dessinant plusieurs pixels
         for (y in 0 until maskHeight) {

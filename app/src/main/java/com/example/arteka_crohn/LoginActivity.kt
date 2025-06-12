@@ -1,17 +1,25 @@
 package com.example.arteka_crohn
 
+import android.content.Context
 import android.content.Intent
+import android.graphics.Rect    
 import android.os.Bundle
 import android.util.Patterns
+import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.google.firebase.auth.FirebaseAuth
+import com.example.arteka_crohn.databinding.ActivityLoginBinding
 
 class LoginActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityLoginBinding
     private fun showAlertDialog(title: String, message: String, errorCode: String? = null) {
         val dialog = SimpleAlertDialogFragment.newInstance(title, message, errorCode)
         dialog.show(supportFragmentManager, "SimpleAlertDialog")
@@ -24,28 +32,31 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var loginButton: Button
     private lateinit var signupButton: Button
     private lateinit var forgotPasswordButton: Button
-    private lateinit var progressBar: ProgressBar
+    private lateinit var progressBar: ImageView
     private lateinit var togglePasswordImageView: android.widget.ImageView
     private lateinit var scrollView: android.widget.ScrollView
     private var isPasswordVisible = false
+    private lateinit var spinnerAnimation: android.view.animation.Animation
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_login)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         auth = FirebaseAuth.getInstance()
-        emailEditText = findViewById(R.id.editTextEmail)
-        passwordEditText = findViewById(R.id.editTextPassword)
-        emailErrorTextView = findViewById(R.id.textViewEmailError)
-        passwordErrorTextView = findViewById(R.id.textViewPasswordError)
-        loginButton = findViewById(R.id.buttonLogin)
-        signupButton = findViewById(R.id.buttonSignup)
-        forgotPasswordButton = findViewById(R.id.buttonForgotPassword)
-        progressBar = findViewById(R.id.progressBarLogin)
-        togglePasswordImageView = findViewById(R.id.imageViewTogglePassword)
-        scrollView = findViewById(R.id.scrollViewLogin)
-        // Suppression de toute logique de scroll automatique liée au clavier/focus
-
+        emailEditText = binding.editTextEmail
+        passwordEditText = binding.editTextPassword
+        emailErrorTextView = binding.textViewEmailError
+        passwordErrorTextView = binding.textViewPasswordError
+        loginButton = binding.buttonLogin
+        signupButton = binding.buttonSignup
+        forgotPasswordButton = binding.buttonForgotPassword
+        progressBar = binding.progressBarLogin
+        togglePasswordImageView = binding.imageViewTogglePassword
+        scrollView = binding.scrollViewLogin
+        
+        // Initialisation de l'animation du spinner
+        spinnerAnimation = android.view.animation.AnimationUtils.loadAnimation(this, R.anim.logo_spinner_rotation)
 
         forgotPasswordButton.setOnClickListener {
             val email = emailEditText.text.toString().trim()
@@ -154,8 +165,10 @@ class LoginActivity : AppCompatActivity() {
 
     private fun sendPasswordReset(email: String) {
         progressBar.visibility = View.VISIBLE
+        progressBar.startAnimation(spinnerAnimation)
         auth.sendPasswordResetEmail(email)
             .addOnCompleteListener { task ->
+                progressBar.clearAnimation()
                 progressBar.visibility = View.GONE
                 if (task.isSuccessful) {
                     showAlertDialog("Réinitialisation envoyée", "Un email de réinitialisation a été envoyé à $email.")
@@ -173,8 +186,10 @@ class LoginActivity : AppCompatActivity() {
         val password = passwordEditText.text.toString().trim()
         if (!validateInput(email, password)) return
         progressBar.visibility = View.VISIBLE
+        progressBar.startAnimation(spinnerAnimation)
         auth.signInWithEmailAndPassword(email, password)
             .addOnCompleteListener(this) { task ->
+                progressBar.clearAnimation()
                 progressBar.visibility = View.GONE
                 if (task.isSuccessful) {
                     goToMain()
@@ -193,8 +208,10 @@ class LoginActivity : AppCompatActivity() {
         val password = passwordEditText.text.toString().trim()
         if (!validateInput(email, password)) return
         progressBar.visibility = View.VISIBLE
+        progressBar.startAnimation(spinnerAnimation)
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener(this) { task ->
+                progressBar.clearAnimation()
                 progressBar.visibility = View.GONE
                 if (task.isSuccessful) {
                     goToMain()
@@ -233,5 +250,31 @@ class LoginActivity : AppCompatActivity() {
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
         finish()
+    }
+
+    /**
+     * Appelé lorsqu'un événement de touche est dispatché
+     */
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            val v = currentFocus
+            if (v is EditText) {
+                // Pour tous les autres cas, vérifier si le clic est en dehors du champ
+                val outRect = Rect()
+                v.getGlobalVisibleRect(outRect)
+                if (!outRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
+                    hideKeyboard()
+                }
+            }
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
+    private fun hideKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        currentFocus?.let { view ->
+            imm.hideSoftInputFromWindow(view.windowToken, 0)
+            view.clearFocus()
+        }
     }
 }

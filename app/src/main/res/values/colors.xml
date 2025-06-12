@@ -15,8 +15,8 @@
     <color name="overlay_teal">#00796B</color>
     <color name="overlay_yellow">#FBC02D</color>
     <color name="transparent">#00000000</color>
-    <color name="colorPrimary">#3F51B5</color>
-    <color name="overlay_purple_light">#4F8C5B98</color>
+    <color name="colorPrimary">#3366FF</color>
+    <color name="colorSecondary">#8395DD</color>
     <color name="text">#222222</color>
     <color name="list_item_background">#FFFFFFFF</color>
 </resources>

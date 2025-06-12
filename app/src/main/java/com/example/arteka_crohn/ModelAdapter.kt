@@ -47,7 +47,7 @@ class ModelAdapter(
             nameView.text = model
             //descView.text = "" // Ajoute une description si tu veux
             if (selected) {
-                cardView.setCardBackgroundColor(itemView.context.getColor(R.color.overlay_purple_light))
+                cardView.setCardBackgroundColor(itemView.context.getColor(R.color.colorSecondary))
                 nameView.setTextColor(itemView.context.getColor(android.R.color.white))
             } else {
                 cardView.setCardBackgroundColor(itemView.context.getColor(R.color.overlay_gray))

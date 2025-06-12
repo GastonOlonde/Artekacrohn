@@ -2,15 +2,20 @@ package com.example.arteka_crohn
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
@@ -37,6 +42,7 @@ class MainActivity :
     private lateinit var drawImages: DrawImages
     private lateinit var cameraManager: CameraManager
     private lateinit var segmentationManager: SegmentationManager
+    private lateinit var spinnerAnimation: android.view.animation.Animation
 
     // État de l'activité
     @Volatile private var isChangingActivity = false
@@ -48,7 +54,11 @@ class MainActivity :
      * Appelé lors de la création de l'activité
      */
     override fun onCreate(savedInstanceState: Bundle?) {
+        
         isChangingActivity = false // Flage pour indiquer si on change d'activité
+
+        installSplashScreen()
+
         super.onCreate(savedInstanceState) // Appel de la méthode onCreate de la classe parente
 
         // Vérifie si l'utilisateur est connecté
@@ -58,10 +68,22 @@ class MainActivity :
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Initialisation de l'animation du spinner
+        spinnerAnimation = android.view.animation.AnimationUtils.loadAnimation(this, R.anim.logo_spinner_rotation)
+
+        // Récupérer le modèle sélectionné depuis les préférences
+        val prefs = getSharedPreferences("model_prefs", Context.MODE_PRIVATE)
+        selectedModelName = prefs.getString("SELECTED_MODEL", selectedModelName) ?: selectedModelName
+        
+        // S'il n'y a pas de modèle sélectionné dans les préférences, définir le modèle par défaut
+        if (!prefs.contains("SELECTED_MODEL")) {
+            prefs.edit().putString("SELECTED_MODEL", selectedModelName).apply()
+        }
+
         setupUI()
-        initializeManagers()
         setupBottomNavigation()
         setupWindowInsets()
+        checkPermissionAndStartCamera()  // Déplacé ici après l'initialisation de l'UI
     }
 
     /**
@@ -80,8 +102,9 @@ class MainActivity :
     private fun setupUI() {
         drawImages = DrawImages(applicationContext)
         
-        // Affiche un indicateur de chargement
+        // Affiche un indicateur de chargement avec animation
         binding.progressBar.visibility = View.VISIBLE
+        binding.progressBar.startAnimation(spinnerAnimation)
     }
 
     /**
@@ -108,11 +131,14 @@ class MainActivity :
         )
         
         // Initialiser la segmentation
-        lifecycleScope.launch(Dispatchers.IO) {
-            segmentationManager.initializeSegmentation()
-            lifecycleScope.launch(Dispatchers.Main) {
-                binding.progressBar.visibility = View.GONE
-                checkPermissionAndStartCamera()
+        binding.previewView.post {
+            // Initialiser la segmentation
+            lifecycleScope.launch(Dispatchers.IO) {
+                segmentationManager.initializeSegmentation()
+                lifecycleScope.launch(Dispatchers.Main) {
+                    binding.progressBar.clearAnimation()
+                    binding.progressBar.visibility = View.GONE
+                }
             }
         }
     }
@@ -162,14 +188,20 @@ class MainActivity :
      * Vérifie les permissions et démarre la caméra si elles sont accordées
      */
     private fun checkPermissionAndStartCamera() {
-        val isGranted = REQUIRED_PERMISSIONS.all {
-            ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
-        }
-
-        if (isGranted) {
-            startCamera()
-        } else {
-            requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
+        when {
+            REQUIRED_PERMISSIONS.all {
+                ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+            } -> {
+                Log.d(TAG, "Toutes les permissions sont accordées, démarrage de la caméra")
+                lifecycleScope.launch(Dispatchers.Main) {
+                    initializeManagers()
+                    startCamera()
+                }
+            }
+            else -> {
+                Log.d(TAG, "Demande des permissions")
+                requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
+            }
         }
     }
 
@@ -177,7 +209,15 @@ class MainActivity :
      * Démarre la caméra
      */
     private fun startCamera() {
-        cameraManager.startCamera()
+        // Vérifier que la vue de prévisualisation est initialisée
+        if (binding.previewView.width == 0 || binding.previewView.height == 0) {
+            // Si la vue n'est pas encore mesurée, attendre qu'elle le soit
+            binding.previewView.post {
+                cameraManager.startCamera()
+            }
+        } else {
+            cameraManager.startCamera()
+        }
     }
 
     /**
@@ -193,17 +233,22 @@ class MainActivity :
     /**
      * Lance une demande de permissions et démarre la caméra si elles sont accordées
      */
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            if (permissions.all { it.value }) {
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions.all { it.value }) {
+            Log.d(TAG, "Permissions accordées par l'utilisateur")
+            lifecycleScope.launch(Dispatchers.Main) {
+                initializeManagers()
                 startCamera()
-            } else {
-                Toast.makeText(
-                    baseContext,
-                    "Les permissions caméra sont requises",
-                    Toast.LENGTH_LONG
-                ).show()
             }
+        } else {
+            Toast.makeText(
+                baseContext,
+                "Permissions refusées. La caméra ne peut pas être utilisée.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     /**
@@ -226,11 +271,17 @@ class MainActivity :
         preProcessTime: Long,
         postProcessTime: Long
     ) {
+        // Arrêter l'animation et cacher le spinner
+        runOnUiThread {
+            binding.progressBar.clearAnimation()
+            binding.progressBar.visibility = View.GONE
+        }
         // Récupérer les dimensions actuelles de l'imageView
         val imageWidth = binding.ivTop.width
         val imageHeight = binding.ivTop.height
 
         // Utiliser les dimensions de l'écran pour l'affichage des masques
+        val drawImages = DrawImages(applicationContext)
         val resultBitmap = drawImages.invoke(
             results = results,
             contourThickness = DEFAULT_CONTOUR_THICKNESS,
@@ -257,30 +308,29 @@ class MainActivity :
      */
     override fun onPause() {
         super.onPause()
-        // Nettoyer la caméra uniquement
-        cameraManager.cleanup()
+        // Nettoyer la caméra uniquement si elle est initialisée
+        if (::cameraManager.isInitialized) {
+            cameraManager.cleanup()
+        }
     }
 
     /**
-     * Appelé lorsqu'on "resume" l'activité
+     * Appelé lorsque l'activité reprend le focus
      */
     override fun onResume() {
         super.onResume()
         
-        // Ne pas redémarrer si on change d'activité
         if (isChangingActivity) {
+            isChangingActivity = false
             return
         }
-        
-        // Redémarrer la caméra si les permissions sont accordées
-        if (REQUIRED_PERMISSIONS.all {
+
+        if (::cameraManager.isInitialized && REQUIRED_PERMISSIONS.all {
             ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
         }) {
-            startCamera()
+            Log.d(TAG, "Reprise de la caméra dans onResume")
+            cameraManager.resumeCamera()
         }
-        
-        // Réinitialiser le flag
-        isChangingActivity = false
     }
 
     /**
@@ -288,15 +338,20 @@ class MainActivity :
      */
     override fun onDestroy() {
         super.onDestroy()
-        segmentationManager.cleanup()
-        cameraManager.cleanup()
+        if (::segmentationManager.isInitialized) {
+            segmentationManager.cleanup()
+        }
+        if (::cameraManager.isInitialized) {
+            cameraManager.cleanup()
+        }
     }
 
     /**
      * Constantes
      */
     companion object {
-        val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
+        private const val TAG = "MainActivity"
+        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
         private const val DEFAULT_CONTOUR_THICKNESS = 1 // Épaisseur du contour en pixels
     }
 }
