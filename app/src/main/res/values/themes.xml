@@ -1,8 +1,10 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
-    <style name="Base.Theme.Artekacrohn" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Base.Theme.Artekacrohn" parent="Theme.Material3.Light.NoActionBar">
         <!-- Customize your light theme here. -->
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorSecondary">@color/colorSecondary</item>
     </style>
 
     <style name="Theme.Artekacrohn" parent="Base.Theme.Artekacrohn" />
