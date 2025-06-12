@@ -28,8 +28,6 @@ interface ImageAnalysisCallback {
  */
 class CameraManager(
     private val context: Context,
-    private val lifecycleOwner: LifecycleOwner,
-    private val previewView: PreviewView,
     private val imageAnalysisCallback: ImageAnalysisCallback
 ) {
     private var cameraProvider: ProcessCameraProvider? = null
@@ -37,19 +35,18 @@ class CameraManager(
     
     @Volatile private var isActive = true
     private var isInitialized = false
+    
+    // Stockage de la dernière image capturée pour l'affichage des détections
+    private var lastFrame: Bitmap? = null
 
     /**
      * Démarre la caméra et configure l'analyse d'image
      */
-    fun startCamera() {
+    fun startCamera(
+        lifecycleOwner: LifecycleOwner,
+        surfaceProvider: Preview.SurfaceProvider
+    ) {
         if (!isActive) return
-
-        // Vérifier que la vue de prévisualisation est initialisée
-        if (previewView.width == 0 || previewView.height == 0) {
-            Log.d(TAG, "PreviewView not initialized yet, waiting...")
-            previewView.post { startCamera() }
-            return
-        }
         
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
@@ -57,7 +54,7 @@ class CameraManager(
                 if (!isActive) return@addListener
 
                 cameraProvider = cameraProviderFuture.get()
-                bindCameraUseCases()
+                bindCameraUseCases(lifecycleOwner, surfaceProvider)
                 isInitialized = true
                 Log.d(TAG, "Camera started successfully")
             } catch (exc: Exception) {
@@ -69,7 +66,10 @@ class CameraManager(
     /**
      * Lie les cas d'utilisation de la caméra
      */
-    private fun bindCameraUseCases() {
+    private fun bindCameraUseCases(
+        lifecycleOwner: LifecycleOwner,
+        surfaceProvider: Preview.SurfaceProvider
+    ) {
         if (!isActive) return
         
         val cameraProvider = cameraProvider ?: return
@@ -79,7 +79,7 @@ class CameraManager(
             val preview = Preview.Builder()
                 .build()
                 .also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
+                    it.setSurfaceProvider(surfaceProvider)
                 }
             
             // Configuration de l'analyseur d'image
@@ -111,13 +111,7 @@ class CameraManager(
      * Reprend la caméra après une pause
      */
     fun resumeCamera() {
-        if (!isInitialized) {
-            startCamera()
-            return
-        }
-
         isActive = true
-        bindCameraUseCases()
     }
 
     /**
@@ -130,13 +124,25 @@ class CameraManager(
         } catch (_: Exception) {}
         
         try {
-            if (imageAnalysisExecutor.isShutdown) {
+            if (!imageAnalysisExecutor.isShutdown) {
                 imageAnalysisExecutor.shutdownNow()
             }
         } catch (_: Exception) {}
         
+        // Libérer la mémoire de la dernière image
+        lastFrame?.recycle()
+        lastFrame = null
+        
         cameraProvider = null
         isInitialized = false
+    }
+    
+    /**
+     * Récupère la dernière image capturée par la caméra
+     * @return La dernière image capturée ou null si aucune image n'est disponible
+     */
+    fun getLastFrame(): Bitmap? {
+        return lastFrame
     }
 
     /**
@@ -173,9 +179,11 @@ class CameraManager(
                 true
             )
 
-            Log.d(TAG, "PreviewView dimensions: ${previewView.width}x${previewView.height}")
-
-            Log.d(TAG, "Rotated bitmap dimensions: ${rotatedBitmap.width}x${rotatedBitmap.height}")
+            // Recycler l'ancienne image si elle existe
+            lastFrame?.recycle()
+            
+            // Stocker la nouvelle image
+            lastFrame = rotatedBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
             // Envoi du bitmap au callback
             imageAnalysisCallback.onImageAnalyzed(rotatedBitmap)

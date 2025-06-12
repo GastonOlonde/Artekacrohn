@@ -19,12 +19,13 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
-import com.example.arteka_crohn.segmentation.ApiSegmentationResult
+import com.example.arteka_crohn.Output0
 import com.example.arteka_crohn.camera.CameraManager
 import com.example.arteka_crohn.camera.ImageAnalysisCallback
 import com.example.arteka_crohn.databinding.ActivityMainBinding
-import com.example.arteka_crohn.segmentation.InstanceSegmentationListener
-import com.example.arteka_crohn.segmentation.SegmentationManager
+import com.example.arteka_crohn.detection.DrawDetections
+import com.example.arteka_crohn.detection.DetectionManager
+import com.example.arteka_crohn.detection.ObjectDetectionListener
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -36,19 +37,19 @@ import kotlinx.coroutines.launch
  */
 class MainActivity :
         AppCompatActivity(),
-        InstanceSegmentationListener {
+        ObjectDetectionListener {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var drawImages: DrawImages
+    private lateinit var drawDetections: DrawDetections
     private lateinit var cameraManager: CameraManager
-    private lateinit var segmentationManager: SegmentationManager
+    private lateinit var detectionManager: DetectionManager
     private lateinit var spinnerAnimation: android.view.animation.Animation
 
     // État de l'activité
     @Volatile private var isChangingActivity = false
 
     // Nom du modèle sélectionné (persistant durant le cycle de vie de l'activité)
-    private var selectedModelName: String = "yolo11v1_float16.tflite" // Valeur par défaut
+    private var selectedModelName: String = "Testied_float16.tflite" // Valeur par défaut
 
     /**
      * Appelé lors de la création de l'activité
@@ -100,7 +101,7 @@ class MainActivity :
      * Configure l'interface utilisateur
      */
     private fun setupUI() {
-        drawImages = DrawImages(applicationContext)
+        drawDetections = DrawDetections(context = this)
         
         // Affiche un indicateur de chargement avec animation
         binding.progressBar.visibility = View.VISIBLE
@@ -111,36 +112,26 @@ class MainActivity :
      * Initialise les gestionnaires
      */
     private fun initializeManagers() {
-        // Initialisation des gestionnaires
-        cameraManager = CameraManager(
-            this,
-            this,
-            binding.previewView,
-            object : ImageAnalysisCallback {
-                override fun onImageAnalyzed(bitmap: android.graphics.Bitmap) {
-                    segmentationManager.onImageAnalyzed(bitmap)
-                }
-            }
+        // Initialiser le gestionnaire de détection
+        detectionManager = DetectionManager(
+            context = this,
+            lifecycleOwner = this,
+            modelName = selectedModelName,
+            detectionListener = this
         )
         
-        segmentationManager = SegmentationManager(
-            this,
-            this,
-            selectedModelName,
-            this
-        )
-        
-        // Initialiser la segmentation
-        binding.previewView.post {
-            // Initialiser la segmentation
-            lifecycleScope.launch(Dispatchers.IO) {
-                segmentationManager.initializeSegmentation()
-                lifecycleScope.launch(Dispatchers.Main) {
-                    binding.progressBar.clearAnimation()
-                    binding.progressBar.visibility = View.GONE
-                }
-            }
+        // Lancer l'initialisation du modèle de détection
+        lifecycleScope.launch(Dispatchers.IO) {
+            detectionManager.initializeDetection()
         }
+
+        // Initialiser le gestionnaire de caméra
+        cameraManager = CameraManager(this, object : ImageAnalysisCallback {
+            override fun onImageAnalyzed(bitmap: android.graphics.Bitmap) {
+                // Utiliser onImageAnalyzed au lieu de detectObjects
+                detectionManager.onImageAnalyzed(bitmap)
+            }
+        })
     }
 
     /**
@@ -172,15 +163,15 @@ class MainActivity :
             }
         }
     }
-    
+
     /**
      * Configure les insets de la fenêtre
      */
     private fun setupWindowInsets() {
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
+            WindowInsetsCompat.CONSUMED
         }
     }
 
@@ -188,20 +179,17 @@ class MainActivity :
      * Vérifie les permissions et démarre la caméra si elles sont accordées
      */
     private fun checkPermissionAndStartCamera() {
-        when {
-            REQUIRED_PERMISSIONS.all {
+        if (REQUIRED_PERMISSIONS.all {
                 ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
-            } -> {
-                Log.d(TAG, "Toutes les permissions sont accordées, démarrage de la caméra")
-                lifecycleScope.launch(Dispatchers.Main) {
-                    initializeManagers()
-                    startCamera()
-                }
+            }) {
+            Log.d(TAG, "Toutes les permissions sont accordées")
+            lifecycleScope.launch(Dispatchers.Main) {
+                initializeManagers()
+                startCamera()
             }
-            else -> {
-                Log.d(TAG, "Demande des permissions")
-                requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
-            }
+        } else {
+            Log.d(TAG, "Demande de permissions")
+            requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
         }
     }
 
@@ -209,14 +197,14 @@ class MainActivity :
      * Démarre la caméra
      */
     private fun startCamera() {
-        // Vérifier que la vue de prévisualisation est initialisée
-        if (binding.previewView.width == 0 || binding.previewView.height == 0) {
-            // Si la vue n'est pas encore mesurée, attendre qu'elle le soit
-            binding.previewView.post {
-                cameraManager.startCamera()
-            }
+        if (::cameraManager.isInitialized) {
+            Log.d(TAG, "Démarrage de la caméra")
+            cameraManager.startCamera(
+                lifecycleOwner = this,
+                surfaceProvider = binding.previewView.surfaceProvider
+            )
         } else {
-            cameraManager.startCamera()
+            Log.e(TAG, "CameraManager n'est pas initialisé")
         }
     }
 
@@ -255,19 +243,21 @@ class MainActivity :
      * Gestionnaire d'erreur
      */
     override fun onError(error: String) {
+        Log.e(TAG, "Erreur de détection: $error")
         runOnUiThread {
-            Toast.makeText(applicationContext, error, Toast.LENGTH_SHORT).show()
-            binding.ivTop.setImageResource(0)
+            Toast.makeText(this, "Erreur: $error", Toast.LENGTH_SHORT).show()
+            binding.progressBar.clearAnimation()
+            binding.progressBar.visibility = View.GONE
         }
     }
 
     /**
-     * Appelé lorsqu'un résultat de segmentation est détecté
+     * Appelé lorsqu'un résultat de détection est détecté
      */
     @SuppressLint("SetTextI18n")
     override fun onDetect(
-        interfaceTime: Long,
-        results: List<ApiSegmentationResult>,
+        inferenceTime: Long,
+        results: List<Output0>,
         preProcessTime: Long,
         postProcessTime: Long
     ) {
@@ -276,31 +266,42 @@ class MainActivity :
             binding.progressBar.clearAnimation()
             binding.progressBar.visibility = View.GONE
         }
+        
+        // Log des résultats de détection
+        Log.d(TAG, "Détection: ${results.size} objets trouvés")
+        results.forEachIndexed { index, result ->
+            Log.d(TAG, "Objet $index: ${result.clsName}, confiance: ${result.cnf}, position: (${result.x1}, ${result.y1}) - (${result.x2}, ${result.y2})")
+        }
+        
         // Récupérer les dimensions actuelles de l'imageView
         val imageWidth = binding.ivTop.width
         val imageHeight = binding.ivTop.height
 
-        // Utiliser les dimensions de l'écran pour l'affichage des masques
-        val drawImages = DrawImages(applicationContext)
-        val resultBitmap = drawImages.invoke(
-            results = results,
-            contourThickness = DEFAULT_CONTOUR_THICKNESS,
-            screenWidth = imageWidth,
-            screenHeight = imageHeight,
-            scaleFactor = 1.0f // Ajustez selon les besoins
+        // Utiliser les dimensions de l'écran pour l'affichage des boîtes englobantes
+        val resultBitmap = drawDetections.drawDetectionsOnBitmapScaled(
+            cameraManager.getLastFrame() ?: return,
+            results,
+            imageWidth,
+            imageHeight
         )
 
         runOnUiThread {
-            binding.tvInferenceTime.text = (interfaceTime + preProcessTime + postProcessTime).toString() + " ms"
+            binding.tvInferenceTime.text = (inferenceTime + preProcessTime + postProcessTime).toString() + " ms"
             binding.ivTop.setImageBitmap(resultBitmap)
         }
     }
 
     /**
-     * Appelé lorsqu'il n'y a pas de résultats de segmentation
+     * Appelé lorsqu'il n'y a pas de résultats de détection
      */
     override fun onEmpty() {
-        runOnUiThread { binding.ivTop.setImageResource(0) }
+        Log.d(TAG, "Aucun objet détecté")
+        runOnUiThread { 
+            binding.ivTop.setImageResource(0) 
+            
+            binding.progressBar.clearAnimation()
+            binding.progressBar.visibility = View.GONE
+        }
     }
 
     /**
@@ -338,8 +339,8 @@ class MainActivity :
      */
     override fun onDestroy() {
         super.onDestroy()
-        if (::segmentationManager.isInitialized) {
-            segmentationManager.cleanup()
+        if (::detectionManager.isInitialized) {
+            detectionManager.cleanup()
         }
         if (::cameraManager.isInitialized) {
             cameraManager.cleanup()
@@ -352,6 +353,5 @@ class MainActivity :
     companion object {
         private const val TAG = "MainActivity"
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
-        private const val DEFAULT_CONTOUR_THICKNESS = 1 // Épaisseur du contour en pixels
     }
 }
