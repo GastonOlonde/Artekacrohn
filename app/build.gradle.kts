@@ -78,6 +78,7 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
     implementation("org.tensorflow:tensorflow-lite-metadata:0.4.4")
 
+
     val cameraxVersion = "1.4.1"
 
     implementation("androidx.camera:camera-core:$cameraxVersion")

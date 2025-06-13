@@ -6,16 +6,16 @@ import android.os.SystemClock
 import android.util.Log
 import com.example.arteka_crohn.Output0
 import com.example.arteka_crohn.detection.config.DetectionConfig
-import com.example.arteka_crohn.detection.model.TensorFlowLiteDetectionModel
+import com.example.arteka_crohn.detection.model.ModelDetector
+import com.example.arteka_crohn.detection.model.ModelDetectorFactory
 import com.example.arteka_crohn.detection.preprocessing.DetectionImagePreprocessor
 import com.example.arteka_crohn.detection.preprocessing.ImagePreprocessor
 import com.example.arteka_crohn.detection.postprocessing.DetectionPostprocessor
 import com.example.arteka_crohn.detection.postprocessing.ObjectDetectionPostprocessor
-import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 
 /**
  * Classe principale de détection d'objets qui coordonne les différents composants
- * Version simplifiée par rapport à la segmentation d'instance
+ * Utilise la détection automatique de modèle pour choisir le bon détecteur
  */
 class ObjectDetection(
     context: Context,
@@ -27,16 +27,31 @@ class ObjectDetection(
 ) {
     private val TAG = "ObjectDetection"
 
+    // Utilisation de la factory pour créer automatiquement le bon détecteur
+    private val detectorFactory = ModelDetectorFactory()
+    private val detector: ModelDetector = detectorFactory.createDetector(context, modelPath, labelPath, message)
+    
     // Composants de détection suivant les principes SOLID
-    private val model: TensorFlowLiteDetectionModel = TensorFlowLiteDetectionModel(context, modelPath, labelPath, message)
-    private val preprocessor: ImagePreprocessor = DetectionImagePreprocessor(model)
-    private val postprocessor: DetectionPostprocessor = ObjectDetectionPostprocessor(model, confidenceThreshold)
+    private val preprocessor: ImagePreprocessor = DetectionImagePreprocessor(
+        inputWidth = detector.getInputWidth(),
+        inputHeight = detector.getInputHeight(),
+        isQuantized = detector.isQuantized(),
+        normalizationValues = detector.getNormalizationValues()
+    )
+    
+    // Seuil de confiance pour les détections
+    private var confidenceThreshold: Float = confidenceThreshold
+
+    init {
+        // Log du type de modèle détecté
+        Log.d(TAG, "Modèle détecté: ${detector.getModelType().name}")
+    }
 
     /**
      * Ferme les ressources utilisées par le modèle
      */
     fun close() {
-        model.close()
+        detector.close()
     }
     
     /**
@@ -44,7 +59,7 @@ class ObjectDetection(
      * @param threshold Nouveau seuil de confiance (entre 0.0 et 1.0)
      */
     fun setConfidenceThreshold(threshold: Float) {
-        (postprocessor as ObjectDetectionPostprocessor).setConfidenceThreshold(threshold)
+        this.confidenceThreshold = threshold
     }
 
     /**
@@ -53,35 +68,23 @@ class ObjectDetection(
      */
     fun invoke(frame: Bitmap) {
         // Vérification de l'initialisation du modèle
-        if (!model.isInitialized()) {
-            objectDetectionListener.onError("Interpreter not initialized properly")
+        if (!detector.isInitialized()) {
+            objectDetectionListener.onError("Detector not initialized properly")
             return
         }
 
         try {
             // Prétraitement
             val t0 = SystemClock.uptimeMillis()
-            val imageBuffer = preprocessor.preprocess(frame)
+            val imageBuffers = preprocessor.preprocess(frame)
             val t1 = SystemClock.uptimeMillis()
             val preProcessTime = t1 - t0
             
             Log.d(TAG, "Prétraitement terminé en $preProcessTime ms")
             
-            // Préparation des buffers de sortie selon le format du modèle de détection
-            // Pour un modèle typique SSD/YOLO, on a généralement un seul tensor de sortie
-            // contenant les boîtes, les scores et les classes
-            val outputBuffer = TensorBuffer.createFixedSize(
-                model.getOutputShape(),
-                TensorFlowLiteDetectionModel.OUTPUT_IMAGE_TYPE
-            )
-            
-            val outputs = mapOf<Int, Any>(
-                0 to outputBuffer.buffer.rewind()
-            )
-            
-            // Inférence
+            // Inférence avec le détecteur spécifique au modèle
             val t2 = SystemClock.uptimeMillis()
-            model.runInference(imageBuffer, outputs)
+            val rawOutput = detector.runInference(imageBuffers)
             val t3 = SystemClock.uptimeMillis()
             val inferenceTime = t3 - t2
             
@@ -90,16 +93,8 @@ class ObjectDetection(
             // Post-traitement
             val t4 = SystemClock.uptimeMillis()
             
-            // Log des 10 premières valeurs du buffer de sortie pour débogage
-            val outputArray = outputBuffer.floatArray
-            Log.d(TAG, "Taille du buffer de sortie: ${outputArray.size}")
-            if (outputArray.isNotEmpty()) {
-                val sampleSize = minOf(10, outputArray.size)
-                val sampleValues = outputArray.take(sampleSize).joinToString(", ")
-                Log.d(TAG, "Échantillon des valeurs de sortie: $sampleValues")
-            }
-            
-            val detectionResults = postprocessor.processDetections(outputBuffer.floatArray)
+            // Utilisation directe du processeur du détecteur pour la sortie brute
+            val detectionResults = detector.processOutput(rawOutput, confidenceThreshold)
             
             if (detectionResults.isEmpty()) {
                 Log.d(TAG, "Aucune détection après post-traitement")
@@ -120,11 +115,8 @@ class ObjectDetection(
                 postProcessTime = postProcessTime
             )
             
-            // Libération explicite des ressources
-            outputBuffer.buffer.clear()
-            
             // Pour les ByteBuffer, on peut les réinitialiser
-            for (buffer in imageBuffer) {
+            for (buffer in imageBuffers) {
                 buffer.rewind() // Réinitialise la position du buffer à 0
             }
 
@@ -133,7 +125,7 @@ class ObjectDetection(
                 System.gc()
             }
         } catch (e: Exception) {
-            Log.e("ObjectDetection", "Error during inference: ${e.message}", e)
+            Log.e(TAG, "Error during inference: ${e.message}", e)
             objectDetectionListener.onError("Error during inference: ${e.message}")
         }
     }

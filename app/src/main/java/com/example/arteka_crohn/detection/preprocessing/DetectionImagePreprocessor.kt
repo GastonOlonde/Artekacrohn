@@ -3,14 +3,19 @@ package com.example.arteka_crohn.detection.preprocessing
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import com.example.arteka_crohn.detection.config.DetectionConfig
-import com.example.arteka_crohn.detection.model.TensorFlowLiteDetectionModel
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
  * Implémentation de l'interface ImagePreprocessor pour les modèles de détection d'objets
+ * Compatible avec tous les types de détecteurs de l'architecture modulaire
  */
-class DetectionImagePreprocessor(private val model: TensorFlowLiteDetectionModel) : ImagePreprocessor {
+class DetectionImagePreprocessor(
+    private val inputWidth: Int,
+    private val inputHeight: Int,
+    private val isQuantized: Boolean = false,
+    private val normalizationValues: Triple<Float, Float, Float>? = null
+) : ImagePreprocessor {
 
     /**
      * Prétraite une image pour la détection d'objets
@@ -19,22 +24,28 @@ class DetectionImagePreprocessor(private val model: TensorFlowLiteDetectionModel
      */
     override fun preprocess(bitmap: Bitmap): Array<ByteBuffer> {
         // Redimensionner l'image aux dimensions attendues par le modèle
-        val scaledBitmap = scaleBitmap(bitmap, model.inputWidth, model.inputHeight)
+        val scaledBitmap = scaleBitmap(bitmap, inputWidth, inputHeight)
         
         // Allouer un ByteBuffer pour stocker l'image prétraitée
+        val bytesPerChannel = if (isQuantized) 1 else 4 // 1 byte pour uint8, 4 bytes pour float32
         val imgData = ByteBuffer.allocateDirect(
-            model.inputWidth * model.inputHeight * 3 * 4 // 3 canaux (RGB) * 4 bytes par float
+            inputWidth * inputHeight * 3 * bytesPerChannel // 3 canaux (RGB)
         ).apply {
             order(ByteOrder.nativeOrder())
         }
         imgData.rewind()
         
-        // Normaliser et convertir l'image en tableau de floats
-        val intValues = IntArray(model.inputWidth * model.inputHeight)
-        scaledBitmap.getPixels(intValues, 0, model.inputWidth, 0, 0, model.inputWidth, model.inputHeight)
+        // Normaliser et convertir l'image en tableau de floats/bytes
+        val intValues = IntArray(inputWidth * inputHeight)
+        scaledBitmap.getPixels(intValues, 0, inputWidth, 0, 0, inputWidth, inputHeight)
+        
+        // Déterminer les valeurs de normalisation à utiliser
+        val mean = normalizationValues?.first ?: DetectionConfig.INPUT_MEAN
+        val std = normalizationValues?.second ?: DetectionConfig.INPUT_STANDARD_DEVIATION
+        val scale = normalizationValues?.third ?: 1.0f
         
         // Convertir les pixels en valeurs normalisées
-        for (i in 0 until model.inputWidth * model.inputHeight) {
+        for (i in 0 until inputWidth * inputHeight) {
             val pixel = intValues[i]
             
             // Extraire les valeurs RGB
@@ -42,21 +53,32 @@ class DetectionImagePreprocessor(private val model: TensorFlowLiteDetectionModel
             val g = (pixel shr 8 and 0xFF)
             val b = (pixel and 0xFF)
             
-            // Normaliser les valeurs (généralement entre 0 et 1 ou -1 et 1)
-            val normalizedR = (r - DetectionConfig.INPUT_MEAN) / DetectionConfig.INPUT_STANDARD_DEVIATION
-            val normalizedG = (g - DetectionConfig.INPUT_MEAN) / DetectionConfig.INPUT_STANDARD_DEVIATION
-            val normalizedB = (b - DetectionConfig.INPUT_MEAN) / DetectionConfig.INPUT_STANDARD_DEVIATION
-            
-            // Ajouter au ByteBuffer dans l'ordre attendu par le modèle (RGB)
-            imgData.putFloat(normalizedR)
-            imgData.putFloat(normalizedG)
-            imgData.putFloat(normalizedB)
+            if (isQuantized) {
+                // Pour les modèles quantifiés (UINT8)
+                imgData.put(r.toByte())
+                imgData.put(g.toByte())
+                imgData.put(b.toByte())
+            } else {
+                // Pour les modèles en float32
+                // Normaliser les valeurs (généralement entre 0 et 1 ou -1 et 1)
+                val normalizedR = (r - mean) / std * scale
+                val normalizedG = (g - mean) / std * scale
+                val normalizedB = (b - mean) / std * scale
+                
+                // Ajouter au ByteBuffer dans l'ordre attendu par le modèle (RGB)
+                imgData.putFloat(normalizedR)
+                imgData.putFloat(normalizedG)
+                imgData.putFloat(normalizedB)
+            }
         }
         
         // Libérer le bitmap redimensionné
         if (scaledBitmap != bitmap) {
             scaledBitmap.recycle()
         }
+        
+        // Réinitialiser la position du buffer pour la lecture
+        imgData.rewind()
         
         return arrayOf(imgData)
     }
