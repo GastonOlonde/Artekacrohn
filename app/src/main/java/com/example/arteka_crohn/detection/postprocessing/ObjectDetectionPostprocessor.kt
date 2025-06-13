@@ -12,7 +12,19 @@ import kotlin.math.min
  * Implémentation de l'interface DetectionPostprocessor pour les modèles de détection d'objets
  * Supporte différents formats de sortie courants (SSD, YOLO, etc.)
  */
-class ObjectDetectionPostprocessor(private val model: TensorFlowLiteDetectionModel) : DetectionPostprocessor {
+class ObjectDetectionPostprocessor(
+    private val model: TensorFlowLiteDetectionModel,
+    private var confidenceThreshold: Float = DetectionConfig.CONFIDENCE_THRESHOLD_DRAW
+) : DetectionPostprocessor {
+
+    /**
+     * Modifie le seuil de confiance pour les détections
+     * @param threshold Nouveau seuil de confiance (entre 0.0 et 1.0)
+     */
+    fun setConfidenceThreshold(threshold: Float) {
+        confidenceThreshold = threshold.coerceIn(0.1f, 0.95f)
+        Log.d(TAG, "Post-processeur: seuil de confiance modifié à $confidenceThreshold")
+    }
 
     /**
      * Traite les résultats bruts de détection pour produire une liste d'objets détectés
@@ -40,7 +52,7 @@ class ObjectDetectionPostprocessor(private val model: TensorFlowLiteDetectionMod
             
             // Format non reconnu
             else -> {
-                Log.w("DetectionPostprocessor", "Format de sortie non reconnu: ${outputShape.joinToString()}")
+                Log.w(TAG, "Format de sortie non reconnu: ${outputShape.joinToString()}")
                 processSSDOutput(rawOutputs, outputShape) // Essayer le format SSD par défaut
             }
         }
@@ -64,7 +76,7 @@ class ObjectDetectionPostprocessor(private val model: TensorFlowLiteDetectionMod
             val confidence = outputs[offset + 4]
             
             // Ignorer les détections avec une confiance inférieure au seuil
-            if (confidence < DetectionConfig.CONFIDENCE_THRESHOLD) continue
+            if (confidence < confidenceThreshold) continue
             
             // Trouver la classe avec le score maximum
             var maxClassScore = 0f
@@ -139,7 +151,7 @@ class ObjectDetectionPostprocessor(private val model: TensorFlowLiteDetectionMod
             }
             
             else -> {
-                Log.w("DetectionPostprocessor", "Format YOLO non reconnu: ${shape.joinToString()}")
+                Log.w(TAG, "Format YOLO non reconnu: ${shape.joinToString()}")
             }
         }
         
@@ -189,7 +201,7 @@ class ObjectDetectionPostprocessor(private val model: TensorFlowLiteDetectionMod
             }
             
             // Vérifier si la confiance est suffisante
-            if (maxClassScore < DetectionConfig.CONFIDENCE_THRESHOLD) continue
+            if (maxClassScore < confidenceThreshold) continue
             
             // Créer l'objet Output0
             val className = if (detectedClass < labels.size) labels[detectedClass] else "Unknown"
@@ -247,7 +259,7 @@ class ObjectDetectionPostprocessor(private val model: TensorFlowLiteDetectionMod
                     val objectConfidence = sigmoid(outputs[baseIdx + 4])
                     
                     // Ignorer les détections avec une confiance faible
-                    if (objectConfidence < DetectionConfig.CONFIDENCE_THRESHOLD) continue
+                    if (objectConfidence < confidenceThreshold) continue
                     
                     // Trouver la classe avec le score maximum
                     var maxClassScore = 0f
@@ -265,7 +277,7 @@ class ObjectDetectionPostprocessor(private val model: TensorFlowLiteDetectionMod
                     val confidence = objectConfidence * maxClassScore
                     
                     // Ignorer les détections avec un score final faible
-                    if (confidence < DetectionConfig.CONFIDENCE_THRESHOLD) continue
+                    if (confidence < confidenceThreshold) continue
                     
                     // Extraire les coordonnées prédites
                     val x = (sigmoid(outputs[baseIdx]) + gridX) / gridWidth
@@ -309,102 +321,102 @@ class ObjectDetectionPostprocessor(private val model: TensorFlowLiteDetectionMod
     }
     
     /**
- * Traite les sorties au format YOLOv8-640 [1, 5, 8400]
- * Format spécifique pour le modèle avec entrée 640x640
- */
-private fun processYOLOv8_640Output(outputs: FloatArray): List<Output0> {
-    val results = mutableListOf<Output0>()
-    val numBoxes = 8400
-    val labels = model.getLabels()
-    
-    // Log des valeurs brutes pour le débogage
-    Log.d("DetectionProcessor", "Traitement de ${outputs.size} valeurs pour YOLOv8-640")
-    
-    // Vérifier les valeurs max pour chaque composante
-    var maxX = 0f
-    var maxY = 0f
-    var maxW = 0f
-    var maxH = 0f
-    var maxConf = 0f
-    
-    // Format [1, 5, 8400] où les données sont organisées par canal
-    // Réorganiser les données pour accéder facilement à chaque boîte
-    for (i in 0 until numBoxes) {
-        // Dans le format [1, 5, 8400], les données sont organisées par canal
-        // Pour chaque boîte i, nous devons accéder aux indices:
-        // x = i
-        // y = i + numBoxes
-        // w = i + 2*numBoxes
-        // h = i + 3*numBoxes
-        // conf = i + 4*numBoxes
-        val x = outputs[i]
-        val y = outputs[i + numBoxes]
-        val w = outputs[i + 2 * numBoxes]
-        val h = outputs[i + 3 * numBoxes]
-        val confidence = min(outputs[i + 4 * numBoxes], 1.0f)  // Limiter à 1.0
+     * Traite les sorties au format YOLOv8-640 [1, 5, 8400]
+     * Format spécifique pour le modèle avec entrée 640x640
+     */
+    private fun processYOLOv8_640Output(outputs: FloatArray): List<Output0> {
+        val results = mutableListOf<Output0>()
+        val numBoxes = 8400
+        val labels = model.getLabels()
         
-        maxX = max(maxX, x)
-        maxY = max(maxY, y)
-        maxW = max(maxW, w)
-        maxH = max(maxH, h)
-        maxConf = max(maxConf, confidence)
+        // Log des valeurs brutes pour le débogage
+        Log.d(TAG, "Traitement de ${outputs.size} valeurs pour YOLOv8-640")
         
-        // Log des 5 premières et dernières détections pour vérifier
-        if (i < 5 || i > numBoxes - 5) {
-            Log.d("DetectionProcessor", "Box $i: x=$x, y=$y, w=$w, h=$h, conf=$confidence")
+        // Vérifier les valeurs max pour chaque composante
+        var maxX = 0f
+        var maxY = 0f
+        var maxW = 0f
+        var maxH = 0f
+        var maxConf = 0f
+        
+        // Format [1, 5, 8400] où les données sont organisées par canal
+        // Réorganiser les données pour accéder facilement à chaque boîte
+        for (i in 0 until numBoxes) {
+            // Dans le format [1, 5, 8400], les données sont organisées par canal
+            // Pour chaque boîte i, nous devons accéder aux indices:
+            // x = i
+            // y = i + numBoxes
+            // w = i + 2*numBoxes
+            // h = i + 3*numBoxes
+            // conf = i + 4*numBoxes
+            val x = outputs[i]
+            val y = outputs[i + numBoxes]
+            val w = outputs[i + 2 * numBoxes]
+            val h = outputs[i + 3 * numBoxes]
+            val confidence = min(outputs[i + 4 * numBoxes], 1.0f)  // Limiter à 1.0
+            
+            maxX = max(maxX, x)
+            maxY = max(maxY, y)
+            maxW = max(maxW, w)
+            maxH = max(maxH, h)
+            maxConf = max(maxConf, confidence)
+            
+            // Log des 5 premières et dernières détections pour vérifier
+            if (i < 5 || i > numBoxes - 5) {
+                Log.d(TAG, "Box $i: x=$x, y=$y, w=$w, h=$h, conf=$confidence")
+            }
+            
+            // Ignorer les détections avec une confiance inférieure au seuil
+            if (confidence < confidenceThreshold) continue
+            
+            // Convertir les coordonnées centrées en coordonnées de boîte
+            val x1 = (x - w / 2)
+            val y1 = (y - h / 2)
+            val x2 = (x + w / 2)
+            val y2 = (y + h / 2)
+            
+            // Limiter les coordonnées entre 0 et 1
+            val boxX1 = max(0f, min(1f, x1))
+            val boxY1 = max(0f, min(1f, y1))
+            val boxX2 = max(0f, min(1f, x2))
+            val boxY2 = max(0f, min(1f, y2))
+            
+            // Calculer le centre et les dimensions normalisées
+            val cx = (boxX1 + boxX2) / 2
+            val cy = (boxY1 + boxY2) / 2
+            val width = boxX2 - boxX1
+            val height = boxY2 - boxY1
+            
+            // Déterminer la classe (pour l'instant, on utilise une classe par défaut)
+            val detectedClass = 0
+            val className = labels.getOrElse(detectedClass) { "Anomaly" }
+            
+            // Ajouter le résultat à la liste
+            results.add(
+                Output0(
+                    x1 = boxX1,
+                    y1 = boxY1,
+                    x2 = boxX2,
+                    y2 = boxY2,
+                    cx = cx,
+                    cy = cy,
+                    w = width,
+                    h = height,
+                    cnf = confidence,
+                    cls = detectedClass,
+                    clsName = className,
+                    maskWeight = emptyList()
+                )
+            )
         }
         
-        // Ignorer les détections avec une confiance inférieure au seuil
-        if (confidence < DetectionConfig.CONFIDENCE_THRESHOLD) continue
+        Log.d(TAG, "Valeurs max: x=$maxX, y=$maxY, w=$maxW, h=$maxH, conf=$maxConf")
+        Log.d(TAG, "Seuil de confiance: $confidenceThreshold")
+        Log.d(TAG, "Détections trouvées: ${results.size}")
         
-        // Convertir les coordonnées centrées en coordonnées de boîte
-        val x1 = (x - w / 2)
-        val y1 = (y - h / 2)
-        val x2 = (x + w / 2)
-        val y2 = (y + h / 2)
-        
-        // Limiter les coordonnées entre 0 et 1
-        val boxX1 = max(0f, min(1f, x1))
-        val boxY1 = max(0f, min(1f, y1))
-        val boxX2 = max(0f, min(1f, x2))
-        val boxY2 = max(0f, min(1f, y2))
-        
-        // Calculer le centre et les dimensions normalisées
-        val cx = (boxX1 + boxX2) / 2
-        val cy = (boxY1 + boxY2) / 2
-        val width = boxX2 - boxX1
-        val height = boxY2 - boxY1
-        
-        // Déterminer la classe (pour l'instant, on utilise une classe par défaut)
-        val detectedClass = 0
-        val className = labels.getOrElse(detectedClass) { "Anomaly" }
-        
-        // Ajouter le résultat à la liste
-        results.add(
-            Output0(
-                x1 = boxX1,
-                y1 = boxY1,
-                x2 = boxX2,
-                y2 = boxY2,
-                cx = cx,
-                cy = cy,
-                w = width,
-                h = height,
-                cnf = confidence,
-                cls = detectedClass,
-                clsName = className,
-                maskWeight = emptyList()
-            )
-        )
+        // Appliquer la suppression des non-maximums pour éliminer les boîtes redondantes
+        return applyNMS(results, DetectionConfig.IOU_THRESHOLD)
     }
-    
-    Log.d("DetectionProcessor", "Valeurs max: x=$maxX, y=$maxY, w=$maxW, h=$maxH, conf=$maxConf")
-    Log.d("DetectionProcessor", "Seuil de confiance: ${DetectionConfig.CONFIDENCE_THRESHOLD}")
-    Log.d("DetectionProcessor", "Détections trouvées: ${results.size}")
-    
-    // Appliquer la suppression des non-maximums pour éliminer les boîtes redondantes
-    return applyNMS(results, DetectionConfig.IOU_THRESHOLD)
-}
     
     /**
      * Récupère les dimensions d'ancres pour le modèle YOLO
@@ -432,7 +444,7 @@ private fun processYOLOv8_640Output(outputs: FloatArray): List<Output0> {
             // Ajouter d'autres modèles selon vos besoins
             else -> {
                 // Valeurs par défaut pour YOLOv3 sur COCO
-                Log.w("DetectionPostprocessor", "Utilisation d'ancres par défaut pour le modèle: ${model.getModelName()}")
+                Log.w(TAG, "Utilisation d'ancres par défaut pour le modèle: ${model.getModelName()}")
                 floatArrayOf(
                     10f, 13f, 16f, 30f, 33f, 23f,
                     30f, 61f, 62f, 45f, 59f, 119f,
@@ -506,5 +518,9 @@ private fun processYOLOv8_640Output(outputs: FloatArray): List<Output0> {
         
         // Retourner l'IoU
         return intersectionArea / unionArea
+    }
+    
+    companion object {
+        private const val TAG = "ObjectDetectionPostprocessor"
     }
 }

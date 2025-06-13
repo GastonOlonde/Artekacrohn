@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.SystemClock
 import android.util.Log
 import com.example.arteka_crohn.Output0
+import com.example.arteka_crohn.detection.config.DetectionConfig
 import com.example.arteka_crohn.detection.model.TensorFlowLiteDetectionModel
 import com.example.arteka_crohn.detection.preprocessing.DetectionImagePreprocessor
 import com.example.arteka_crohn.detection.preprocessing.ImagePreprocessor
@@ -20,6 +21,7 @@ class ObjectDetection(
     context: Context,
     modelPath: String,
     labelPath: String?,
+    confidenceThreshold: Float = DetectionConfig.CONFIDENCE_THRESHOLD_DRAW,
     private val objectDetectionListener: ObjectDetectionListener,
     private val message: (String) -> Unit
 ) {
@@ -28,13 +30,21 @@ class ObjectDetection(
     // Composants de détection suivant les principes SOLID
     private val model: TensorFlowLiteDetectionModel = TensorFlowLiteDetectionModel(context, modelPath, labelPath, message)
     private val preprocessor: ImagePreprocessor = DetectionImagePreprocessor(model)
-    private val postprocessor: DetectionPostprocessor = ObjectDetectionPostprocessor(model)
+    private val postprocessor: DetectionPostprocessor = ObjectDetectionPostprocessor(model, confidenceThreshold)
 
     /**
      * Ferme les ressources utilisées par le modèle
      */
     fun close() {
         model.close()
+    }
+    
+    /**
+     * Modifie le seuil de confiance pour les détections
+     * @param threshold Nouveau seuil de confiance (entre 0.0 et 1.0)
+     */
+    fun setConfidenceThreshold(threshold: Float) {
+        (postprocessor as ObjectDetectionPostprocessor).setConfidenceThreshold(threshold)
     }
 
     /**

@@ -10,6 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.widget.SeekBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,9 +28,11 @@ import com.example.arteka_crohn.databinding.ActivityMainBinding
 import com.example.arteka_crohn.detection.DrawDetections
 import com.example.arteka_crohn.detection.DetectionManager
 import com.example.arteka_crohn.detection.ObjectDetectionListener
+import com.example.arteka_crohn.detection.config.DetectionConfig
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.text.DecimalFormat
 
 /**
  * MainActivity est responsable de l'interface utilisateur principale et de la coordination
@@ -44,7 +48,15 @@ class MainActivity :
     private lateinit var cameraManager: CameraManager
     private lateinit var detectionManager: DetectionManager
     private lateinit var spinnerAnimation: android.view.animation.Animation
+    
+    // Seuil de confiance actuel
+    private var confidenceThreshold = DetectionConfig.CONFIDENCE_THRESHOLD
+    private val decimalFormat = DecimalFormat("#0.00")
+    private var seekBarInitialized = false
 
+    // Clé pour les préférences partagées
+    private val PREF_CONFIDENCE_THRESHOLD = "confidence_threshold"
+    
     // État de l'activité
     @Volatile private var isChangingActivity = false
 
@@ -76,12 +88,16 @@ class MainActivity :
         val prefs = getSharedPreferences("model_prefs", Context.MODE_PRIVATE)
         selectedModelName = prefs.getString("SELECTED_MODEL", selectedModelName) ?: selectedModelName
         
+        // Récupérer le seuil de confiance depuis les préférences
+        confidenceThreshold = prefs.getFloat(PREF_CONFIDENCE_THRESHOLD, DetectionConfig.CONFIDENCE_THRESHOLD)
+        
         // S'il n'y a pas de modèle sélectionné dans les préférences, définir le modèle par défaut
         if (!prefs.contains("SELECTED_MODEL")) {
             prefs.edit().putString("SELECTED_MODEL", selectedModelName).apply()
         }
 
         setupUI()
+        setupConfidenceControls()
         setupBottomNavigation()
         setupWindowInsets()
         checkPermissionAndStartCamera()  // Déplacé ici après l'initialisation de l'UI
@@ -107,6 +123,83 @@ class MainActivity :
         binding.progressBar.visibility = View.VISIBLE
         binding.progressBar.startAnimation(spinnerAnimation)
     }
+    
+    /**
+     * Configure les contrôles de seuil de confiance (SeekBar)
+     */
+    private fun setupConfidenceControls() {
+        // Récupérer le seuil sauvegardé dans les préférences, ou utiliser la valeur par défaut
+        val preferences = getSharedPreferences("model_prefs", Context.MODE_PRIVATE)
+        confidenceThreshold = preferences.getFloat(PREF_CONFIDENCE_THRESHOLD, DetectionConfig.CONFIDENCE_THRESHOLD)
+        
+        // Configuration des valeurs du seuil par paliers de 0.05
+        val minThreshold = 0.1f
+        val maxThreshold = 0.95f
+        val step = 0.05f
+        
+        // Calculer le nombre d'étapes (0.1, 0.15, 0.2, ..., 0.95)
+        val numSteps = ((maxThreshold - minThreshold) / step).toInt()
+        
+        // Initialiser le SeekBar
+        val seekBar = findViewById<SeekBar>(R.id.seekBarConfidence)
+        
+        // Pour un SeekBar à paliers, on définit la valeur max comme le nombre d'étapes
+        seekBar.max = numSteps
+        
+        // Calculer l'étape actuelle basée sur le seuil actuel
+        val currentStep = ((confidenceThreshold - minThreshold) / step).toInt()
+        seekBar.progress = currentStep
+        
+        // Mettre à jour l'affichage du seuil
+        updateConfidenceDisplay()
+        
+        // Configurer le listener du SeekBar
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (!seekBarInitialized) return
+                
+                // Convertir l'étape (0, 1, 2, ...) en valeur de seuil (0.1, 0.15, 0.2, ...)
+                confidenceThreshold = minThreshold + (progress * step)
+                
+                // Mettre à jour l'affichage et appliquer le seuil
+                updateConfidenceDisplay()
+            }
+            
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                // Rien à faire
+            }
+            
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                // Appliquer le nouveau seuil quand l'utilisateur relâche le curseur
+                updateConfidenceThreshold()
+                
+                // Sauvegarder le seuil dans les préférences
+                preferences.edit()
+                    .putFloat(PREF_CONFIDENCE_THRESHOLD, confidenceThreshold)
+                    .apply()
+            }
+        })
+        
+        // Marquer comme initialisé pour éviter de déclencher le callback pendant l'initialisation
+        seekBarInitialized = true
+    }
+    
+    /**
+     * Met à jour l'affichage du seuil de confiance
+     */
+    private fun updateConfidenceDisplay() {
+        findViewById<TextView>(R.id.tvConfidenceThreshold).text = decimalFormat.format(confidenceThreshold)
+    }
+    
+    /**
+     * Met à jour le seuil de confiance dans le gestionnaire de détection
+     */
+    private fun updateConfidenceThreshold() {
+        if (::detectionManager.isInitialized) {
+            detectionManager.setConfidenceThreshold(confidenceThreshold)
+            Log.d(TAG, "Seuil de confiance mis à jour: $confidenceThreshold")
+        }
+    }
 
     /**
      * Initialise les gestionnaires
@@ -117,6 +210,7 @@ class MainActivity :
             context = this,
             lifecycleOwner = this,
             modelName = selectedModelName,
+            confidenceThreshold = confidenceThreshold, // Utiliser le seuil de confiance actuel
             detectionListener = this
         )
         

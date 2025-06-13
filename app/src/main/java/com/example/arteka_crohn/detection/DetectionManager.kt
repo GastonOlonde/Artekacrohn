@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.example.arteka_crohn.camera.ImageAnalysisCallback
+import com.example.arteka_crohn.detection.config.DetectionConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -21,11 +22,13 @@ class DetectionManager(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner, // Gestionnaire de la vie de cycle de l'activité
     private val modelName: String, // Nom du modèle de détection
+    private val confidenceThreshold: Float = DetectionConfig.CONFIDENCE_THRESHOLD_DRAW, // Seuil de confiance pour les détections
     private val detectionListener: ObjectDetectionListener // Listener pour les résultats de détection
 ) : ImageAnalysisCallback {
 
     private var objectDetection: ObjectDetection? = null
     private val detectionLock = ReentrantLock()
+    private var currentConfidenceThreshold = confidenceThreshold
     
     @Volatile private var isActive = true
     private var lastLoadedModelName: String = modelName
@@ -43,6 +46,7 @@ class DetectionManager(
                 context = context,
                 modelPath = "models/$modelName",
                 labelPath = "labels/labels.txt",
+                confidenceThreshold = currentConfidenceThreshold,
                 objectDetectionListener = detectionListener,
                 message = { msg ->
                     lifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
@@ -103,6 +107,21 @@ class DetectionManager(
         cleanup()
         isActive = true
         initializeDetection()
+    }
+    
+    /**
+     * Modifie le seuil de confiance pour les détections
+     * @param threshold Nouveau seuil de confiance (entre 0.0 et 1.0)
+     */
+    fun setConfidenceThreshold(threshold: Float) {
+        val validThreshold = threshold.coerceIn(0.1f, 0.95f)
+        if (validThreshold != currentConfidenceThreshold) {
+            currentConfidenceThreshold = validThreshold
+            detectionLock.withLock {
+                objectDetection?.setConfidenceThreshold(validThreshold)
+            }
+            Log.d(TAG, "Seuil de confiance modifié: $validThreshold")
+        }
     }
 
     companion object {
