@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scrollViewRegister"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="34dp"
+        android:gravity="center">
+
+        <!-- Logo -->
+        <ImageView
+            android:id="@+id/imageViewLogo"
+            android:layout_width="150dp"
+            android:layout_height="150dp"
+            android:src="@drawable/splash_logo_p"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"
+            android:contentDescription="Logo de l'application"
+            android:scaleType="fitCenter"/>
+
+        <!-- Titre, inscription -->
+        <TextView
+            android:id="@+id/textViewTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Créer un compte"
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <EditText
+            android:id="@+id/editTextEmail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Email"
+            android:padding="16dp"
+            android:background="@drawable/edit_text_background"
+            android:inputType="textEmailAddress"
+            android:textSize="16sp"
+            android:autofillHints="emailAddress"
+            android:importantForAutofill="yes"
+            android:saveEnabled="true"
+            android:imeOptions="actionNext" />
+
+        <TextView
+            android:id="@+id/textViewEmailError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#B00020"
+            android:textSize="12sp"
+            android:visibility="gone"
+            android:text="" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/edit_text_background">
+
+            <EditText
+                android:id="@+id/editTextPassword"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Mot de passe"
+                android:padding="16dp"
+                android:background="@null"
+                android:inputType="textPassword"
+                android:textSize="16sp"
+                android:autofillHints="password"
+                android:importantForAutofill="yes"
+                android:saveEnabled="true"
+                android:imeOptions="actionNext" />
+
+            <ImageView
+                android:id="@+id/imageViewTogglePassword"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@android:drawable/ic_menu_view"
+                android:contentDescription="Afficher/masquer le mot de passe"
+                android:padding="12dp"
+                android:focusable="true"
+                android:clickable="true" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/textViewPasswordError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#B00020"
+            android:textSize="12sp"
+            android:visibility="gone"
+            android:text="" />
+
+        <!-- Champ confirmation mot de passe -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/edit_text_background">
+
+            <EditText
+                android:id="@+id/editTextConfirmPassword"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Confirmer le mot de passe"
+                android:padding="16dp"
+                android:background="@null"
+                android:inputType="textPassword"
+                android:textSize="16sp"
+                android:autofillHints="password"
+                android:importantForAutofill="yes"
+                android:saveEnabled="true"
+                android:imeOptions="actionDone" />
+
+            <ImageView
+                android:id="@+id/imageViewToggleConfirmPassword"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@android:drawable/ic_menu_view"
+                android:contentDescription="Afficher/masquer le mot de passe"
+                android:padding="12dp"
+                android:focusable="true"
+                android:clickable="true" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/textViewConfirmPasswordError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#B00020"
+            android:textSize="12sp"
+            android:visibility="gone"
+            android:text="" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/buttonRegister"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="S'inscrire"
+            android:textAllCaps="false"
+            android:textSize="16sp"
+            android:textColor="@color/white"
+            android:background="@drawable/primary_button_background"
+            android:layout_marginTop="32dp"
+            android:enabled="false"
+            android:padding="16dp"/>
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/buttonLogin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="J'ai déjà un compte"
+            android:textAllCaps="false"
+            android:textSize="16sp"
+            android:textColor="#3366FF"
+            android:background="@drawable/secondary_button_background"
+            android:layout_marginTop="16dp"
+            android:padding="16dp"/>
+
+        <ImageView
+            android:id="@+id/progressBarRegister"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/logo_spinner"
+            android:visibility="gone"
+            android:layout_marginTop="16dp"
+            android:layout_gravity="center" />
+    </LinearLayout>
+</ScrollView>

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.util.Log
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -75,15 +76,17 @@ class CameraManager(
         val cameraProvider = cameraProvider ?: return
         
         try {
-            // Configuration du preview
+            // Configuration du preview avec ratio 4:3
             val preview = Preview.Builder()
+                .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                 .build()
                 .also {
                     it.setSurfaceProvider(surfaceProvider)
                 }
             
-            // Configuration de l'analyseur d'image
+            // Configuration de l'analyseur d'image avec ratio 4:3
             val imageAnalyzerUseCase = ImageAnalysis.Builder()
+                .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
@@ -192,5 +195,9 @@ class CameraManager(
 
     companion object {
         private const val TAG = "CameraManager"
+        
+        // Constantes pour les ratios d'aspect de la caméra
+        private const val RATIO_4_3 = AspectRatio.RATIO_4_3
+        private const val RATIO_16_9 = AspectRatio.RATIO_16_9
     }
 }

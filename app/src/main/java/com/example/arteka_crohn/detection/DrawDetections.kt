@@ -76,6 +76,21 @@ class DrawDetections(private val context: Context) {
         val outputBitmap = createBitmap(outputWidth, outputHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(outputBitmap)
         
+        // Calculer les facteurs d'échelle en supposant une image carrée pour YOLOv8
+        // La plupart des modèles de détection utilisent des dimensions carrées (ex: 640x640)
+        val inputWidth = 640f  // Dimensions typiques des modèles YOLO (carré)
+        val inputHeight = 640f // Dimensions typiques des modèles YOLO (carré)
+        
+        val scaleX = outputWidth.toFloat() / inputWidth
+        val scaleY = outputHeight.toFloat() / inputHeight
+        
+        // Utiliser une mise à l'échelle uniforme pour préserver le ratio d'aspect
+        val uniformScale = minOf(scaleX, scaleY)
+        
+        // Calculer les décalages pour centrer l'image
+        val offsetX = (outputWidth - inputWidth * uniformScale) / 2f
+        val offsetY = (outputHeight - inputHeight * uniformScale) / 2f
+        
         // Dessiner chaque détection
         for (detection in detections) {
             // Sélectionner une couleur basée sur la classe
@@ -86,11 +101,31 @@ class DrawDetections(private val context: Context) {
             boxPaint.color = color
             textBackgroundPaint.color = color
             
-            // Convertir les coordonnées normalisées en coordonnées de pixels
-            val left = (detection.x1 * outputWidth).toInt()
-            val top = (detection.y1 * outputHeight).toInt()
-            val right = (detection.x2 * outputWidth).toInt()
-            val bottom = (detection.y2 * outputHeight).toInt()
+            // CORRECTION POUR BBOX DÉCALÉES:
+            // 1. Calculer la mise à l'échelle originale utilisée lors du prétraitement
+            val modelInputSize = 640f // Taille d'entrée du modèle (typiquement 640×640 pour YOLOv8)
+            val originalWidth = 480f  // Largeur originale de l'image (mode portrait)
+            val originalHeight = 640f // Hauteur originale de l'image (mode portrait)
+            
+            val scaleFactorPreprocessingX = modelInputSize / originalWidth
+            val scaleFactorPreprocessingY = modelInputSize / originalHeight
+            val scalePreprocessing = minOf(scaleFactorPreprocessingX, scaleFactorPreprocessingY)
+            
+            // 2. Calculer les offsets utilisés lors du prétraitement
+            val offsetXPreprocessing = (modelInputSize - (originalWidth * scalePreprocessing)) / 2f / modelInputSize
+            val offsetYPreprocessing = (modelInputSize - (originalHeight * scalePreprocessing)) / 2f / modelInputSize
+            
+            // 3. Dénormaliser les coordonnées en tenant compte du prétraitement
+            val x1Corrected = (detection.x1 - offsetXPreprocessing) / (1f - 2f * offsetXPreprocessing)
+            val x2Corrected = (detection.x2 - offsetXPreprocessing) / (1f - 2f * offsetXPreprocessing)
+            val y1Corrected = detection.y1 // Pas de correction verticale car le ratio 4:3 ne crée pas d'offset vertical
+            val y2Corrected = detection.y2
+            
+            // 4. Convertir les coordonnées normalisées corrigées en pixels
+            val left = offsetX + (x1Corrected * inputWidth * uniformScale)
+            val top = offsetY + (y1Corrected * inputHeight * uniformScale)
+            val right = offsetX + (x2Corrected * inputWidth * uniformScale)
+            val bottom = offsetY + (y2Corrected * inputHeight * uniformScale)
             
             // Vérifier que les coordonnées sont valides
             if (left < 0 || top < 0 || right > outputWidth || bottom > outputHeight) {
@@ -99,7 +134,7 @@ class DrawDetections(private val context: Context) {
             }
             
             // Dessiner la boîte englobante
-            canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), boxPaint)
+            canvas.drawRect(left, top, right, bottom, boxPaint)
             
             // Préparer le texte à afficher
             val displayText = "${detection.clsName} ${(detection.cnf * 100).toInt()}%"
@@ -111,13 +146,13 @@ class DrawDetections(private val context: Context) {
             val textPadding = DetectionConfig.TEXT_PADDING_DRAW.toInt()
             
             // Calculer la position du texte
-            var textX = left.toFloat()
-            var textYBase = top - textPadding.toFloat()
+            var textX = left
+            var textYBase = top - textPadding
             
             // Ajuster si le texte sort en haut
             val bgHeight = textHeight + textPadding * 2
             if (textYBase - bgHeight < 0) {
-                textYBase = top + textHeight + textPadding * 2.toFloat()
+                textYBase = top + textHeight + textPadding * 2
             }
             
             // Dessiner le fond du texte
@@ -165,6 +200,108 @@ class DrawDetections(private val context: Context) {
         targetWidth: Int,
         targetHeight: Int
     ): Bitmap {
-        return invoke(detections, targetWidth, targetHeight)
+        if (detections.isEmpty()) {
+            Log.w("DrawDetections", "No detections to draw.")
+            return createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        }
+        
+        // Créer un bitmap vide pour le résultat
+        val outputBitmap = createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(outputBitmap)
+        
+        // Calculer les facteurs d'échelle
+        val scaleX = targetWidth.toFloat() / bitmap.width
+        val scaleY = targetHeight.toFloat() / bitmap.height
+        
+        // Utiliser une mise à l'échelle uniforme pour préserver le ratio d'aspect
+        val uniformScale = minOf(scaleX, scaleY)
+        
+        // Calculer les décalages pour centrer l'image
+        val offsetX = (targetWidth - bitmap.width * uniformScale) / 2f
+        val offsetY = (targetHeight - bitmap.height * uniformScale) / 2f
+        
+        // Dessiner chaque détection
+        for (detection in detections) {
+            // Sélectionner une couleur basée sur la classe
+            val colorIndex = detection.cls % boxColors.size
+            val color = ContextCompat.getColor(context, boxColors[colorIndex])
+            
+            // Configurer les peintures avec la couleur sélectionnée
+            boxPaint.color = color
+            textBackgroundPaint.color = color
+            
+            // CORRECTION POUR BBOX DÉCALÉES:
+            // 1. Calculer la mise à l'échelle originale utilisée lors du prétraitement
+            val modelInputSize = 640f // Taille d'entrée du modèle (typiquement 640×640 pour YOLOv8)
+            val originalWidth = 480f  // Largeur originale de l'image (mode portrait)
+            val originalHeight = 640f // Hauteur originale de l'image (mode portrait)
+            
+            val scaleFactorPreprocessingX = modelInputSize / originalWidth
+            val scaleFactorPreprocessingY = modelInputSize / originalHeight
+            val scalePreprocessing = minOf(scaleFactorPreprocessingX, scaleFactorPreprocessingY)
+            
+            // 2. Calculer les offsets utilisés lors du prétraitement
+            val offsetXPreprocessing = (modelInputSize - (originalWidth * scalePreprocessing)) / 2f / modelInputSize
+            val offsetYPreprocessing = (modelInputSize - (originalHeight * scalePreprocessing)) / 2f / modelInputSize
+            
+            // 3. Dénormaliser les coordonnées en tenant compte du prétraitement
+            val x1Corrected = (detection.x1 - offsetXPreprocessing) / (1f - 2f * offsetXPreprocessing)
+            val x2Corrected = (detection.x2 - offsetXPreprocessing) / (1f - 2f * offsetXPreprocessing)
+            val y1Corrected = detection.y1 // Pas de correction verticale car le ratio 4:3 ne crée pas d'offset vertical
+            val y2Corrected = detection.y2
+            
+            // 4. Convertir les coordonnées normalisées corrigées en pixels
+            val left = offsetX + (x1Corrected * bitmap.width * uniformScale)
+            val top = offsetY + (y1Corrected * bitmap.height * uniformScale)
+            val right = offsetX + (x2Corrected * bitmap.width * uniformScale)
+            val bottom = offsetY + (y2Corrected * bitmap.height * uniformScale)
+            
+            // Vérifier que les coordonnées sont valides
+            if (left < 0 || top < 0 || right > targetWidth || bottom > targetHeight) {
+                Log.w("DrawDetections", "Coordonnées hors limites: ($left, $top) - ($right, $bottom)")
+                continue
+            }
+            
+            // Dessiner la boîte englobante
+            canvas.drawRect(left, top, right, bottom, boxPaint)
+            
+            // Préparer le texte à afficher
+            val displayText = "${detection.clsName} ${(detection.cnf * 100).toInt()}%"
+            val textBounds = Rect()
+            textPaint.getTextBounds(displayText, 0, displayText.length, textBounds)
+            
+            val textWidth = textBounds.width()
+            val textHeight = textBounds.height()
+            val textPadding = DetectionConfig.TEXT_PADDING_DRAW.toInt()
+            
+            // Calculer la position du texte
+            var textX = left
+            var textYBase = top - textPadding
+            
+            // Ajuster si le texte sort en haut
+            val bgHeight = textHeight + textPadding * 2
+            if (textYBase - bgHeight < 0) {
+                textYBase = top + textHeight + textPadding * 2
+            }
+            
+            // Dessiner le fond du texte
+            val textBackgroundRect = Rect(
+                textX.toInt(),
+                (textYBase - textHeight - textPadding).toInt(),
+                (textX + textWidth + textPadding * 2).toInt(),
+                textYBase.toInt()
+            )
+            canvas.drawRect(textBackgroundRect, textBackgroundPaint)
+            
+            // Dessiner le texte
+            canvas.drawText(
+                displayText,
+                textX + textPadding,
+                textYBase - textPadding,
+                textPaint
+            )
+        }
+        
+        return outputBitmap
     }
 }

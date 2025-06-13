@@ -11,7 +11,6 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
-import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -68,7 +67,6 @@ class LoginActivity : AppCompatActivity() {
             }
         }
     
-
         // Désactive le bouton de connexion par défaut
         loginButton.isEnabled = false
 
@@ -89,7 +87,7 @@ class LoginActivity : AppCompatActivity() {
                 }
 
                 // Mot de passe
-                if (password.isNotEmpty() && password.length < 6) {
+                if (password.length < 6) {
                     passwordErrorTextView.text = "Le mot de passe doit contenir au moins 6 caractères"
                     passwordErrorTextView.visibility = android.view.View.VISIBLE
                 } else {
@@ -97,57 +95,61 @@ class LoginActivity : AppCompatActivity() {
                     passwordErrorTextView.visibility = android.view.View.GONE
                 }
 
-                loginButton.isEnabled = email.isNotEmpty() &&
-                        android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() &&
-                        password.length >= 6
+                // Active le bouton de connexion si les deux champs sont valides
+                loginButton.isEnabled = emailErrorTextView.visibility == android.view.View.GONE && 
+                                        passwordErrorTextView.visibility == android.view.View.GONE &&
+                                        email.isNotEmpty() &&
+                                        password.isNotEmpty()
             }
+
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         }
+
         emailEditText.addTextChangedListener(watcher)
         passwordEditText.addTextChangedListener(watcher)
-
-
-        // Désactive le bouton de connexion si le mot de passe est vide ou trop court
-        passwordEditText.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val password = s.toString()
-                loginButton.isEnabled = loginButton.isEnabled && password.length >= 6
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-
-        togglePasswordImageView.setOnClickListener {
-            isPasswordVisible = !isPasswordVisible
-            if (isPasswordVisible) {
-                passwordEditText.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-                togglePasswordImageView.setImageResource(android.R.drawable.ic_menu_view)
-            } else {
-                passwordEditText.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-                togglePasswordImageView.setImageResource(android.R.drawable.ic_menu_view)
-            }
-            // Pour garder le curseur à la fin
-            passwordEditText.setSelection(passwordEditText.text.length)
-        }
 
         loginButton.setOnClickListener {
             loginUser()
         }
-
+        
+        // Redirection vers l'activité d'inscription
         signupButton.setOnClickListener {
-            signupUser()
+            val intent = Intent(this, RegisterActivity::class.java)
+            startActivity(intent)
+        }
+
+        // Toggle visibilité du mot de passe
+        togglePasswordImageView.setOnClickListener {
+            isPasswordVisible = !isPasswordVisible
+            if (isPasswordVisible) {
+                // Afficher le mot de passe
+                passwordEditText.transformationMethod = android.text.method.HideReturnsTransformationMethod.getInstance()
+                togglePasswordImageView.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            } else {
+                // Masquer le mot de passe
+                passwordEditText.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+                togglePasswordImageView.setImageResource(android.R.drawable.ic_menu_view)
+            }
+            // Placer le curseur à la fin
+            passwordEditText.setSelection(passwordEditText.text.length)
         }
     }
 
     override fun onStart() {
         super.onStart()
-        if (auth.currentUser != null) {
+        // Vérifiez si l'utilisateur est connecté (non null) et mettez à jour l'interface utilisateur en conséquence.
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
             goToMain()
         }
     }
 
     internal fun sendPasswordReset(email: String) {
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            showAlertDialog("Erreur", "Format d'email invalide")
+            return
+        }
         progressBar.visibility = View.VISIBLE
         progressBar.startAnimation(spinnerAnimation)
         auth.sendPasswordResetEmail(email)
@@ -155,7 +157,7 @@ class LoginActivity : AppCompatActivity() {
                 progressBar.clearAnimation()
                 progressBar.visibility = View.GONE
                 if (task.isSuccessful) {
-                    showAlertDialog("Réinitialisation envoyée", "Un email de réinitialisation a été envoyé à $email.")
+                    showAlertDialog("Email envoyé", "Un email de réinitialisation a été envoyé à $email")
                 } else {
                     val exception = task.exception
                     val errorCode = (exception as? com.google.firebase.auth.FirebaseAuthException)?.errorCode
@@ -181,29 +183,8 @@ class LoginActivity : AppCompatActivity() {
                     // Message global pour éviter toute fuite d'info
                     showAlertDialog(
                         "Erreur de connexion",
-                        "L’identifiant ou le mot de passe est incorrect, ou le compte n’existe pas."
+                        "L'identifiant ou le mot de passe est incorrect, ou le compte n'existe pas."
                     )
-                }
-            }
-    }
-
-    private fun signupUser() {
-        val email = emailEditText.text.toString().trim()
-        val password = passwordEditText.text.toString().trim()
-        if (!validateInput(email, password)) return
-        progressBar.visibility = View.VISIBLE
-        progressBar.startAnimation(spinnerAnimation)
-        auth.createUserWithEmailAndPassword(email, password)
-            .addOnCompleteListener(this) { task ->
-                progressBar.clearAnimation()
-                progressBar.visibility = View.GONE
-                if (task.isSuccessful) {
-                    goToMain()
-                } else {
-                    val exception = task.exception
-                    val errorCode = (exception as? com.google.firebase.auth.FirebaseAuthException)?.errorCode
-                    val errorMessage = exception?.localizedMessage ?: "Erreur inconnue"
-                    showAlertDialog("Erreur d'inscription", errorMessage, errorCode)
                 }
             }
     }

@@ -70,6 +70,12 @@ object DetectionConfig {
     // Paramètres de post-traitement
     const val MAX_DETECTIONS_DRAW = 10 // Nombre maximum de détections à afficher
     
+    // Facteurs de correction pour les coordonnées de détection
+    // Ces facteurs aident à corriger le décalage des détections vers le centre
+    // lorsque les objets sont sur les côtés de l'écran
+    const val CORRECTION_FACTOR_X = 1.0f  // Valeur initiale, à ajuster selon les besoins
+    const val CORRECTION_FACTOR_Y = 1.0f  // Valeur initiale, à ajuster selon les besoins
+    
     // Paramètres spécifiques aux modèles YOLO
     object YOLO {
         // Paramètres généraux YOLO

@@ -22,7 +22,7 @@ class ProfileActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnLogout).setOnClickListener {
             FirebaseAuth.getInstance().signOut()
-            val intent = Intent(this, LoginActivity::class.java)
+            val intent = Intent(this, WelcomeActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
         }
@@ -35,7 +35,7 @@ class ProfileActivity : AppCompatActivity() {
             view.findViewById<Button>(R.id.btnConfirmDelete).setOnClickListener {
                 user?.delete()?.addOnCompleteListener { task ->
                     if (task.isSuccessful) {
-                        val intent = Intent(this, LoginActivity::class.java)
+                        val intent = Intent(this, WelcomeActivity::class.java)
                         intent.flags =
                                 Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         startActivity(intent)
