@@ -8,6 +8,7 @@ import com.example.arteka_crohn.Output0
 import com.example.arteka_crohn.detection.config.DetectionConfig
 import com.example.arteka_crohn.detection.model.ModelDetector
 import com.example.arteka_crohn.detection.model.ModelDetectorFactory
+import com.example.arteka_crohn.detection.model.ModelType
 import com.example.arteka_crohn.detection.preprocessing.DetectionImagePreprocessor
 import com.example.arteka_crohn.detection.preprocessing.ImagePreprocessor
 import com.example.arteka_crohn.detection.postprocessing.DetectionPostprocessor
@@ -55,6 +56,14 @@ class ObjectDetection(
     }
     
     /**
+     * Retourne le type du modèle détecté
+     * @return Le type de modèle (YOLO, MOBILENET_SSD, RT_DETR, etc.)
+     */
+    fun getModelType(): ModelType {
+        return detector.getModelType()
+    }
+    
+    /**
      * Modifie le seuil de confiance pour les détections
      * @param threshold Nouveau seuil de confiance (entre 0.0 et 1.0)
      */
@@ -98,7 +107,13 @@ class ObjectDetection(
             
             if (detectionResults.isEmpty()) {
                 Log.d(TAG, "Aucune détection après post-traitement")
-                objectDetectionListener.onEmpty()
+                val t5 = SystemClock.uptimeMillis()
+                val postProcessTime = t5 - t4
+                objectDetectionListener.onEmpty(
+                    inferenceTime = inferenceTime,
+                    preProcessTime = preProcessTime,
+                    postProcessTime = postProcessTime
+                )
                 return
             }
             

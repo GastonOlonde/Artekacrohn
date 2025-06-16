@@ -32,6 +32,7 @@ import com.example.arteka_crohn.detection.config.DetectionConfig
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DecimalFormat
 
 /**
@@ -95,6 +96,9 @@ class MainActivity :
         if (!prefs.contains("SELECTED_MODEL")) {
             prefs.edit().putString("SELECTED_MODEL", selectedModelName).apply()
         }
+
+        // Afficher le nom du modèle sélectionné
+        binding.tvSelectedModel.text = selectedModelName.replace(".tflite", "")
 
         setupUI()
         setupConfidenceControls()
@@ -388,13 +392,20 @@ class MainActivity :
     /**
      * Appelé lorsqu'il n'y a pas de résultats de détection
      */
-    override fun onEmpty() {
-        Log.d(TAG, "Aucun objet détecté")
+    override fun onEmpty(
+        inferenceTime: Long,
+        preProcessTime: Long,
+        postProcessTime: Long
+    ) {
+        Log.d(TAG, "Aucun objet détecté - Temps d'inférence: $inferenceTime ms")
         runOnUiThread { 
             binding.ivTop.setImageResource(0) 
             
             binding.progressBar.clearAnimation()
             binding.progressBar.visibility = View.GONE
+            
+            // Afficher le temps d'inférence même sans détection
+            binding.tvInferenceTime.text = (inferenceTime + preProcessTime + postProcessTime).toString() + " ms"
         }
     }
 
@@ -420,11 +431,32 @@ class MainActivity :
             return
         }
 
-        if (::cameraManager.isInitialized && REQUIRED_PERMISSIONS.all {
+        if (REQUIRED_PERMISSIONS.all {
             ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
         }) {
-            Log.d(TAG, "Reprise de la caméra dans onResume")
-            cameraManager.resumeCamera()
+            Log.d(TAG, "Reprise de l'activité dans onResume")
+            
+            // Reprendre la caméra si elle est initialisée
+            if (::cameraManager.isInitialized) {
+                Log.d(TAG, "Reprise de la caméra")
+                cameraManager.resumeCamera()
+            }
+            
+            // Reprendre la détection si elle est initialisée
+            if (::detectionManager.isInitialized) {
+                Log.d(TAG, "Reprise de la détection")
+                // Démarrer l'animation de chargement pendant la reprise
+                binding.progressBar.startAnimation(spinnerAnimation)
+                binding.progressBar.visibility = View.VISIBLE
+                
+                lifecycleScope.launch(Dispatchers.IO) {
+                    detectionManager.resume()
+                    // Cacher le spinner une fois la reprise terminée
+                    withContext(Dispatchers.Main) {
+                        // Ne pas cacher le spinner ici, il sera caché lors de la première détection
+                    }
+                }
+            }
         }
     }
 

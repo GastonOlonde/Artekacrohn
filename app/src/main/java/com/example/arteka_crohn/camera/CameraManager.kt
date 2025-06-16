@@ -32,10 +32,14 @@ class CameraManager(
     private val imageAnalysisCallback: ImageAnalysisCallback
 ) {
     private var cameraProvider: ProcessCameraProvider? = null
-    private val imageAnalysisExecutor = Executors.newSingleThreadExecutor()
+    private var imageAnalysisExecutor = Executors.newSingleThreadExecutor()
     
     @Volatile private var isActive = true
     private var isInitialized = false
+    
+    // Mémoriser le lifecycleOwner et surfaceProvider pour permettre la reprise
+    private var lastLifecycleOwner: LifecycleOwner? = null
+    private var lastSurfaceProvider: Preview.SurfaceProvider? = null
     
     // Stockage de la dernière image capturée pour l'affichage des détections
     private var lastFrame: Bitmap? = null
@@ -48,6 +52,10 @@ class CameraManager(
         surfaceProvider: Preview.SurfaceProvider
     ) {
         if (!isActive) return
+        
+        // Mémoriser les paramètres pour permettre la reprise
+        lastLifecycleOwner = lifecycleOwner
+        lastSurfaceProvider = surfaceProvider
         
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
@@ -114,7 +122,28 @@ class CameraManager(
      * Reprend la caméra après une pause
      */
     fun resumeCamera() {
+        if (isInitialized && isActive) {
+            // La caméra est déjà active et initialisée, rien à faire
+            Log.d(TAG, "Camera already active, no need to resume")
+            return
+        }
+        
+        // Réactiver la caméra
         isActive = true
+        
+        // Vérifier si l'executor doit être recréé
+        if (imageAnalysisExecutor.isShutdown) {
+            Log.d(TAG, "Recreating image analysis executor")
+            imageAnalysisExecutor = Executors.newSingleThreadExecutor()
+        }
+        
+        // Si on a les références nécessaires, redémarrer la caméra
+        if (lastLifecycleOwner != null && lastSurfaceProvider != null) {
+            Log.d(TAG, "Restarting camera with saved references")
+            startCamera(lastLifecycleOwner!!, lastSurfaceProvider!!)
+        } else {
+            Log.e(TAG, "Cannot resume camera: missing lifecycle owner or surface provider")
+        }
     }
 
     /**
@@ -138,6 +167,8 @@ class CameraManager(
         
         cameraProvider = null
         isInitialized = false
+        
+        // Ne pas effacer lastLifecycleOwner et lastSurfaceProvider pour permettre la reprise
     }
     
     /**

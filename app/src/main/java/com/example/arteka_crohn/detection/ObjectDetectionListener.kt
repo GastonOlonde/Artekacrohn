@@ -25,5 +25,9 @@ interface ObjectDetectionListener {
     /**
      * Appelé lorsqu'aucun objet n'est détecté
      */
-    fun onEmpty()
+    fun onEmpty(
+        inferenceTime: Long,
+        preProcessTime: Long,
+        postProcessTime: Long
+    )
 }

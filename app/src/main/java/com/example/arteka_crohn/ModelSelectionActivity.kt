@@ -19,7 +19,7 @@ class ModelSelectionActivity : AppCompatActivity() {
         val models = ModelManager.listModels(this)
         recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
         val adapter = ModelAdapter(this, models) { selectedModel ->
-            showModernToast(this, "Modèle sélectionné : $selectedModel")
+            //showModernToast(this, "Modèle sélectionné : $selectedModel")
         }
         recyclerView.adapter = adapter
         recyclerView.setHasFixedSize(true)

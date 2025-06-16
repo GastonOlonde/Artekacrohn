@@ -7,6 +7,7 @@ package com.example.arteka_crohn.detection.model
 enum class ModelType {
     YOLO_V8,        // YOLOv8 models (n, s, m, l, x)
     MOBILENET_SSD,  // MobileNet SSD models (single or multi-output format)
+    RT_DETR,        // RT-DETR models (Real-time Detection Transformer)
     UNKNOWN;        // Type inconnu ou non supporté
     
     companion object {
@@ -29,6 +30,9 @@ enum class ModelType {
                 lowerFilename.contains("ssd") || 
                 lowerFilename.contains("mobilenet") || 
                 lowerFilename.contains("coco") -> MOBILENET_SSD
+                lowerFilename.contains("rt-detr") ||
+                lowerFilename.contains("rtdetr") ||
+                lowerFilename.contains("detr") -> RT_DETR
                 else -> UNKNOWN
             }
         }
@@ -46,6 +50,12 @@ enum class ModelType {
                 val outputShape = outputShapes[0]
                 if (outputShape.size == 3 && outputShape[0] == 1 && outputShape[2] == 8400) {
                     return YOLO_V8
+                }
+                
+                // RT-DETR avec sortie [1, 300, 5]
+                if (outputShape.size == 3 && outputShape[0] == 1 && 
+                    outputShape[1] == 300 && outputShape[2] == 5) {
+                    return RT_DETR
                 }
             }
             

@@ -8,6 +8,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.example.arteka_crohn.camera.ImageAnalysisCallback
 import com.example.arteka_crohn.detection.config.DetectionConfig
+import com.example.arteka_crohn.detection.model.ModelType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,6 +33,7 @@ class DetectionManager(
     
     @Volatile private var isActive = true
     private var lastLoadedModelName: String = modelName
+    private var detectedModelType: ModelType = ModelType.UNKNOWN
 
     /**
      * Initialise le modèle de détection
@@ -58,6 +60,12 @@ class DetectionManager(
             detectionLock.withLock {
                 objectDetection = detector
                 lastLoadedModelName = modelName
+                
+                // Récupérer le type de modèle après initialisation
+                detector.getModelType()?.let {
+                    detectedModelType = it
+                    Log.d(TAG, "Detected model type: ${it.name}")
+                }
             }
             
             Log.d(TAG, "ObjectDetection initialized successfully.")
@@ -122,6 +130,49 @@ class DetectionManager(
             }
             Log.d(TAG, "Seuil de confiance modifié: $validThreshold")
         }
+    }
+
+    /**
+     * Reprend la détection après une mise en pause
+     */
+    suspend fun resume() {
+        if (isActive) {
+            // Déjà actif, rien à faire
+            Log.d(TAG, "DetectionManager is already active")
+            return
+        }
+        
+        // Réactiver la détection
+        isActive = true
+        
+        // Vérifier si le modèle doit être réinitialisé sans maintenir le verrou
+        val needsInitialization: Boolean = detectionLock.withLock {
+            objectDetection == null
+        }
+        
+        // Initialiser en dehors du bloc critique si nécessaire
+        if (needsInitialization) {
+            Log.d(TAG, "Reinitializing detection model after resume")
+            initializeDetection()
+        }
+    }
+
+    /**
+     * Récupère le type de modèle actuellement chargé
+     * @return Le type de modèle ou UNKNOWN si aucun modèle n'est chargé
+     */
+    fun getModelType(): ModelType {
+        return detectionLock.withLock {
+            detectedModelType
+        }
+    }
+    
+    /**
+     * Récupère le nom du modèle actuellement chargé
+     * @return Le nom du modèle
+     */
+    fun getModelName(): String {
+        return lastLoadedModelName
     }
 
     companion object {

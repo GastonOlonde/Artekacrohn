@@ -10,33 +10,51 @@
     app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
     app:strokeWidth="0dp"
-    android:foreground="?attr/selectableItemBackground">
+    android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@color/overlay_gray">
 
     <!-- Le background doit être géré uniquement par la CardView (voir adapter), ne pas mettre de background ici -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:padding="16dp"
         android:gravity="center_vertical">
 
-        <TextView
-            android:id="@+id/tvModelName"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Nom du modèle"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="@color/text" />
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <!-- <TextView
-            android:id="@+id/tvModelDescription"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Description du modèle"
-            android:textSize="14sp"
-            android:textColor="#666"
-            android:layout_marginTop="4dp" /> -->
+            <TextView
+                android:id="@+id/tvModelName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Nom du modèle"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text" />
+
+            <!-- <TextView
+                android:id="@+id/tvModelDescription"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Description du modèle"
+                android:textSize="14sp"
+                android:textColor="#666"
+                android:layout_marginTop="4dp" /> -->
+
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/ivCheckMark"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_check_circle"
+            android:visibility="gone"
+            android:contentDescription="Modèle sélectionné"
+            app:tint="@color/overlay_green" />
 
     </LinearLayout>
 

@@ -18,6 +18,7 @@
     <color name="transparent">#00000000</color>
     <color name="colorPrimary">#3366FF</color>
     <color name="colorSecondary">#8395DD</color>
+    <color name="selected_model">#A4B3EA</color>
     <color name="text">#222222</color>
     <color name="text_light">#FFFFFF</color>
     <color name="list_item_background">#FFFFFFFF</color>

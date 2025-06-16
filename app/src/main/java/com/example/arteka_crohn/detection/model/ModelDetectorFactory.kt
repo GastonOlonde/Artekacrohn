@@ -44,6 +44,10 @@ class ModelDetectorFactory {
                 Log.d(TAG, "Creating MobileNet SSD detector")
                 MobileNetSSDModelDetector(onMessage)
             }
+            ModelType.RT_DETR -> {
+                Log.d(TAG, "Creating RT-DETR detector")
+                RTDETRModelDetector(onMessage)
+            }
             ModelType.UNKNOWN -> {
                 // Si le type est inconnu, on crée un détecteur temporaire pour extraire les infos
                 Log.d(TAG, "Unknown model type, creating temporary detector to extract information")
@@ -107,6 +111,7 @@ class ModelDetectorFactory {
         val detector = when (modelType) {
             ModelType.YOLO_V8 -> YoloModelDetector(onMessage)
             ModelType.MOBILENET_SSD -> MobileNetSSDModelDetector(onMessage)
+            ModelType.RT_DETR -> RTDETRModelDetector(onMessage)
             else -> throw IllegalArgumentException("Unsupported model type: ${modelType.name}")
         }
         
