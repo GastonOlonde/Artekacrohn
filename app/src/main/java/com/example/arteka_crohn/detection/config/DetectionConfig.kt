@@ -45,6 +45,8 @@ object DetectionConfig {
     // Seuils de confiance
     const val CONFIDENCE_THRESHOLD_DRAW = 0.5f // Seuil de confiance pour les détections
     const val IOU_THRESHOLD_DRAW = 0.5f // Seuil IoU pour la suppression des non-maximums (NMS)
+
+    const val USE_GPU_DELEGATE = true // Utiliser le GPU pour l'inférence si disponible
     
     // Paramètres d'affichage pour les détections
     const val PRESERVE_ASPECT_RATIO_DRAW = true
@@ -124,4 +126,5 @@ object DetectionConfig {
             const val NUM_CLASSES = 80 // Nombre de classes COCO par défaut
         }
     }
+
 }

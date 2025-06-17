@@ -6,6 +6,7 @@ package com.example.arteka_crohn.detection.model
  */
 enum class ModelType {
     YOLO_V8,        // YOLOv8 models (n, s, m, l, x)
+    YOLO_V11,       // YOLOv11 models (nécessitant un traitement spécial)
     MOBILENET_SSD,  // MobileNet SSD models (single or multi-output format)
     RT_DETR,        // RT-DETR models (Real-time Detection Transformer)
     UNKNOWN;        // Type inconnu ou non supporté
@@ -19,6 +20,7 @@ enum class ModelType {
         fun detectFromFilename(filename: String): ModelType {
             val lowerFilename = filename.lowercase()
             return when {
+                lowerFilename.contains("yolo") && lowerFilename.contains("11") -> YOLO_V11
                 lowerFilename.contains("yolo") && (
                     lowerFilename.contains("v8") || 
                     lowerFilename.contains("-n") || 
@@ -40,14 +42,22 @@ enum class ModelType {
         /**
          * Détecte le type de modèle en analysant les dimensions des tenseurs d'entrée/sortie
          * @param inputShape Shape du tenseur d'entrée
-         * @param outputShape Shape du tenseur de sortie
+         * @param outputShapes Shape du tenseur de sortie
          * @return Type de modèle détecté ou UNKNOWN si non reconnu
          */
         fun detectFromShapes(inputShape: IntArray, outputShapes: List<IntArray>): ModelType {
-            // YOLOv8 a généralement une seule sortie avec shape [1, 84, 8400] (pour COCO)
-            // ou [1, n+5, 8400] où n est le nombre de classes
+            // YOLOv11 a des dimensions spécifiques
             if (outputShapes.size == 1) {
                 val outputShape = outputShapes[0]
+                // Identifier YOLOv11 par ses dimensions spécifiques
+                // Note: Ces dimensions sont hypothétiques et doivent être ajustées
+                if (outputShape.size == 3 && outputShape[0] == 1 && 
+                    outputShape[2] > 8400 && outputShape[1] > 84) {
+                    return YOLO_V11
+                }
+                
+                // YOLOv8 a généralement une seule sortie avec shape [1, 84, 8400] (pour COCO)
+                // ou [1, n+5, 8400] où n est le nombre de classes
                 if (outputShape.size == 3 && outputShape[0] == 1 && outputShape[2] == 8400) {
                     return YOLO_V8
                 }

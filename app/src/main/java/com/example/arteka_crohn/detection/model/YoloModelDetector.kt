@@ -7,6 +7,7 @@ import com.example.arteka_crohn.detection.config.DetectionConfig
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.io.File
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -22,10 +23,14 @@ class YoloModelDetector(
     
     // Configuration spécifique YOLO
     private var numClasses = 80 // Par défaut (COCO)
+    private var modelType: ModelType = ModelType.YOLO_V8
     
     override fun initialize(context: Context, modelPath: String, labelPath: String?) {
         onMessage = onMessageCallback
         super.initialize(context, modelPath, labelPath)
+        
+        // Déterminer le type de modèle YOLO (v8, v11, etc.)
+        detectModelType(modelPath)
         
         // Déterminer le nombre de classes basé sur les dimensions de sortie
         if (outputShapes.isNotEmpty()) {
@@ -37,6 +42,35 @@ class YoloModelDetector(
                 Log.d(TAG, "Detected $numClasses classes for YOLO model")
             }
         }
+    }
+    
+    /**
+     * Détecte le type spécifique de modèle YOLO
+     */
+    private fun detectModelType(modelPath: String) {
+        // Détection par nom de fichier d'abord
+        val filename = File(modelPath).name
+        val detectedType = ModelType.detectFromFilename(filename)
+        
+        if (detectedType == ModelType.YOLO_V11) {
+            modelType = ModelType.YOLO_V11
+            Log.d(TAG, "Detected YOLOv11 model from filename: $filename")
+            return
+        }
+        
+        // Sinon, essayer de détecter à partir des dimensions des tenseurs
+        if (outputShapes.isNotEmpty() && interpreter?.getInputTensor(0)?.shape()?.isNotEmpty() == true) {
+            val detectedFromShapes = ModelType.detectFromShapes(interpreter?.getInputTensor(0)?.shape() ?: intArrayOf(), outputShapes)
+            if (detectedFromShapes == ModelType.YOLO_V11) {
+                modelType = ModelType.YOLO_V11
+                Log.d(TAG, "Detected YOLOv11 model from tensor shapes")
+                return
+            }
+        }
+        
+        // Par défaut, considérer comme YOLOv8
+        modelType = ModelType.YOLO_V8
+        Log.d(TAG, "Using default model type: YOLOv8")
     }
     
     override fun runInference(inputBuffers: Array<ByteBuffer>): Any {
@@ -85,14 +119,204 @@ class YoloModelDetector(
         if (outputShapes.isEmpty()) return emptyList()
         val outputShape = outputShapes[0]
         
-        // Détecter le format du modèle YOLOv8
-        return if (outputShape.size >= 3 && outputShape[1] == 5) {
-            // Format YOLOv8-640 spécifique [1, 5, 8400]
-            processYoloV8ChannelFormat(outputArray, confidenceThreshold)
-        } else {
-            // Format YOLOv8 standard [1, 84, 8400]
-            processYoloV8StandardFormat(outputArray, confidenceThreshold)
+        // Détecter le format du modèle YOLO
+        return when {
+            modelType == ModelType.YOLO_V11 -> {
+                // Traitement spécifique pour YOLOv11
+                Log.d(TAG, "Processing YOLOv11 output with shape: ${outputShape.joinToString()}")
+                processYoloV11Output(outputArray, confidenceThreshold)
+            }
+            outputShape.size >= 3 && outputShape[1] == 6 -> {
+                // Format YOLOv8 avec classification [1, 6, 8400]
+                processYoloV8ClassChannelFormat(outputArray, confidenceThreshold)
+            }
+            outputShape.size >= 3 && outputShape[1] == 5 -> {
+                // Format YOLOv8-640 spécifique [1, 5, 8400]
+                processYoloV8ChannelFormat(outputArray, confidenceThreshold)
+            }
+            else -> {
+                // Format YOLOv8 standard [1, 84, 8400]
+                processYoloV8StandardFormat(outputArray, confidenceThreshold)
+            }
         }
+    }
+
+    /**
+     * Traite la sortie YOLOv11 avec une approche robuste et sécurisée
+     * Cette méthode limite le nombre de détections et gère les formats non standard
+     */
+    private fun processYoloV11Output(outputArray: FloatArray, confidenceThreshold: Float): List<Output0> {
+        try {
+            if (outputShapes.isEmpty()) return emptyList()
+            val outputShape = outputShapes[0]
+            
+            Log.d(TAG, "Processing YOLOv11 with shape: ${outputShape.joinToString()}")
+            
+            // Liste des détections finales
+            val detections = mutableListOf<Output0>()
+            
+            // Si le format n'est pas exploitable, retourner une liste vide
+            if (outputShape.size < 3) {
+                Log.e(TAG, "Invalid YOLOv11 output shape: dimensions < 3")
+                return emptyList()
+            }
+            
+            // Récupérer les dimensions correctes pour YOLOv11
+            // Format: [1, classes+4, predictions]
+            val totalClasses = outputShape[1] - 4 // 84 - 4 = 80 classes
+            val numPredictions = outputShape[2]   // 8400
+            
+            Log.d(TAG, "YOLOv11 output dimensions: ${outputShape[1]} x $numPredictions")
+            
+            // Calculer le stride pour la navigation dans le tableau plat
+            val totalElements = outputArray.size
+            val stride = totalElements / (outputShape[1] * numPredictions)
+            
+            // Variables pour le suivi des détections
+            val confidenceScores = FloatArray(numPredictions)
+            val classIndices = IntArray(numPredictions)
+            
+            // Première étape: calculer tous les scores de confiance et classes
+            for (i in 0 until numPredictions) {
+                // Chercher le score maximal pour toutes les classes (index 4 à 83)
+                var maxScore = 0f
+                var maxClass = 0
+                
+                for (c in 0 until totalClasses) {
+                    val classIndex = 4 + c
+                    val score = safeGetValue(outputArray, classIndex * numPredictions + i, 0f)
+                    
+                    if (score > maxScore) {
+                        maxScore = score
+                        maxClass = c
+                    }
+                }
+                
+                confidenceScores[i] = maxScore
+                classIndices[i] = maxClass
+            }
+            
+            // Créer une liste de paires (index, score) et trier par score décroissant
+            val sortedIndices = confidenceScores.indices.sortedByDescending { confidenceScores[it] }
+            
+            // Conserver uniquement les top N prédictions avec score > seuil
+            val maxDetections = DetectionConfig.MAX_DETECTIONS_DRAW // Limiter à un nombre raisonnable
+            var detectionCount = 0
+            
+            for (index in sortedIndices) {
+                // Arrêter si on a atteint le nombre max de détections
+                if (detectionCount >= maxDetections) break
+                
+                // Ignorer si le score est inférieur au seuil
+                val confidence = confidenceScores[index]
+                if (confidence < confidenceThreshold) continue
+                
+                // Récupérer les coordonnées
+                val cx = safeGetValue(outputArray, 0 * numPredictions + index, 0f)
+                val cy = safeGetValue(outputArray, 1 * numPredictions + index, 0f)
+                val w = safeGetValue(outputArray, 2 * numPredictions + index, 0f)
+                val h = safeGetValue(outputArray, 3 * numPredictions + index, 0f)
+                
+                // Vérifier la validité des coordonnées
+                if (!isValidCoordinate(cx) || !isValidCoordinate(cy) || 
+                    !isValidCoordinate(w) || !isValidCoordinate(h)) {
+                    continue
+                }
+                
+                // Contraindre les coordonnées au format normalisé [0-1]
+                val xmin = max(0f, min(1f, cx - w / 2))
+                val ymin = max(0f, min(1f, cy - h / 2))
+                val xmax = max(0f, min(1f, cx + w / 2))
+                val ymax = max(0f, min(1f, cy + h / 2))
+                
+                // Vérifier une taille minimale pour la détection
+                if ((xmax - xmin) * (ymax - ymin) < 0.001f) continue
+                
+                // Créer la détection
+                val classId = classIndices[index]
+                val className = getClassNameWithMapping(classId)
+                
+                detections.add(
+                    Output0(
+                        x1 = xmin,
+                        y1 = ymin,
+                        x2 = xmax,
+                        y2 = ymax,
+                        cx = cx,
+                        cy = cy,
+                        w = w,
+                        h = h,
+                        cnf = confidence,
+                        cls = classId,
+                        clsName = className,
+                        maskWeight = emptyList()
+                    )
+                )
+                
+                detectionCount++
+            }
+            
+            Log.d(TAG, "YOLOv11 detected ${detections.size} objects")
+            
+            // Appliquer la suppression des non-maximums
+            return applyNMS(detections, DetectionConfig.IOU_THRESHOLD)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Fatal error processing YOLOv11 output: ${e.message}", e)
+            return emptyList()
+        }
+    }
+
+    /**
+     * Retourne le nom de classe approprié en gérant le mapping spécifique pour YOLOv11
+     * Cette fonction résout les problèmes de correspondance entre indices et noms de classes
+     */
+    private fun getClassNameWithMapping(classId: Int): String {
+        // Vérifier si nous traitons un modèle YOLOv11
+        if (modelType == ModelType.YOLO_V11) {
+            // Log pour le débogage
+            Log.d(TAG, "YOLOv11 classId: $classId, available labels: ${labels.size}")
+            
+            // Pour YOLOv11, on peut avoir besoin d'un mapping spécial
+            // Option 1: Utiliser des indices fixes pour certaines classes courantes
+            // (à personnaliser en fonction du modèle spécifique)
+            
+            // Option 2: Décalage d'indice (si nécessaire)
+            // Essayer avec un décalage de 0, 1 ou -1 pour voir ce qui fonctionne le mieux
+            // par exemple: val adjustedId = classId + 1
+            val adjustedId = classId + 2
+            
+            // Option 3: Table de mapping explicite
+            // val mappedId = YOLOV11_CLASS_MAPPING.getOrElse(classId) { classId }
+            
+            return labels.getOrElse(adjustedId) { 
+                // Enregistrer les détails utiles pour le débogage
+                Log.w(TAG, "Unknown class ID for YOLOv11: $classId, adjusted to $adjustedId")
+                "unknown" 
+            }
+        } else {
+            // Comportement standard pour les autres modèles
+            return labels.getOrElse(classId) { "unknown" }
+        }
+    }
+    
+    /**
+     * Récupère une valeur dans un tableau avec gestion des index invalides
+     */
+    private fun safeGetValue(array: FloatArray, index: Int, defaultValue: Float): Float {
+        return if (index >= 0 && index < array.size) {
+            val value = array[index]
+            if (value.isNaN() || value.isInfinite()) defaultValue else value
+        } else {
+            defaultValue
+        }
+    }
+    
+    /**
+     * Vérifie si une coordonnée est valide (non NaN, non Infinite, et dans les limites raisonnables)
+     */
+    private fun isValidCoordinate(value: Float): Boolean {
+        return !value.isNaN() && !value.isInfinite() && value > -100f && value < 100f
     }
 
     /**
@@ -207,6 +431,72 @@ class YoloModelDetector(
             // Pour ce format, on a une seule classe par défaut (anomalie)
             val detectedClass = 0
             val className = labels.getOrElse(detectedClass) { "Anomaly" }
+            
+            // Ajouter le résultat à la liste
+            detections.add(
+                Output0(
+                    x1 = x1,
+                    y1 = y1,
+                    x2 = x2,
+                    y2 = y2,
+                    cx = x,
+                    cy = y,
+                    w = w,
+                    h = h,
+                    cnf = confidence,
+                    cls = detectedClass,
+                    clsName = className,
+                    maskWeight = emptyList()
+                )
+            )
+        }
+        
+        // Appliquer la suppression des non-maximums
+        return applyNMS(detections, DetectionConfig.IOU_THRESHOLD)
+    }
+
+    /**
+     * Traite la sortie YOLOv8 au format par canal avec classe [1, 6, 8400]
+     * où les données sont organisées par canal (x, y, w, h, conf, class)
+     */
+    private fun processYoloV8ClassChannelFormat(outputArray: FloatArray, confidenceThreshold: Float): List<Output0> {
+        if (outputShapes.isEmpty()) return emptyList()
+        val outputShape = outputShapes[0]
+        
+        // Pour YOLOv8 avec classe: [1, 6, 8400]
+        val numChannels = outputShape[1] // 6 (x, y, w, h, conf, class)
+        val numBoxes = outputShape[2] // 8400 = nombre de boîtes
+        
+        // Liste des détections finales
+        val detections = mutableListOf<Output0>()
+        
+        // Format [1, 6, 8400] où les données sont organisées par canal
+        for (i in 0 until numBoxes) {
+            // Pour chaque boîte i, accéder aux indices par canal:
+            // x = i
+            // y = i + numBoxes
+            // w = i + 2*numBoxes
+            // h = i + 3*numBoxes
+            // conf = i + 4*numBoxes
+            // class = i + 5*numBoxes
+            val x = outputArray[i]
+            val y = outputArray[i + numBoxes]
+            val w = outputArray[i + 2 * numBoxes]
+            val h = outputArray[i + 3 * numBoxes]
+            val confidence = min(outputArray[i + 4 * numBoxes], 1.0f)  // Limiter à 1.0
+            val detectedClass = outputArray[i + 5 * numBoxes].toInt()
+            
+            // Ignorer les détections avec confiance trop faible
+            if (confidence < confidenceThreshold) continue
+            
+            // Convertir les coordonnées centrées en coordonnées de boîte
+            val x1 = max(0f, min(1f, x - w / 2))
+            val y1 = max(0f, min(1f, y - h / 2))
+            val x2 = max(0f, min(1f, x + w / 2))
+            val y2 = max(0f, min(1f, y + h / 2))
+            
+            // Récupérer le nom de la classe
+            val className = labels.getOrElse(detectedClass) { "Unknown" }
             
             // Ajouter le résultat à la liste
             detections.add(

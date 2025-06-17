@@ -98,7 +98,9 @@ class MainActivity :
         }
 
         // Afficher le nom du modèle sélectionné
-        binding.tvSelectedModel.text = selectedModelName.replace(".tflite", "")
+        binding.tvSelectedModel.text = selectedModelName.replace(".tflite", "").let {
+            if (it.length > 20) it.take(20) + "..." else it
+        }
 
         setupUI()
         setupConfidenceControls()

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.arteka_crohn.Output0
 import java.nio.ByteBuffer
+import java.lang.ref.WeakReference
 
 /**
  * Factory pour créer et initialiser automatiquement le bon détecteur
@@ -11,6 +12,9 @@ import java.nio.ByteBuffer
  */
 class ModelDetectorFactory {
     private val TAG = "ModelDetectorFactory"
+    
+    // Référence faible au dernier détecteur créé pour la gestion des ressources
+    private var lastDetectorRef: WeakReference<ModelDetector>? = null
     
     /**
      * Crée et initialise un détecteur adapté au modèle spécifié
@@ -28,6 +32,32 @@ class ModelDetectorFactory {
     ): ModelDetector {
         Log.d(TAG, "Creating detector for model: $modelPath")
         
+        // Fermer l'ancien détecteur s'il existe pour libérer les ressources
+        lastDetectorRef?.get()?.let {
+            try {
+                Log.d(TAG, "Closing previous detector before creating a new one")
+                it.close()
+                
+                // Ajouter un petit délai pour permettre au système de libérer les ressources GPU
+                // Ce délai peut aider à prévenir les erreurs de mémoire GPU
+                try {
+                    Thread.sleep(300)
+                } catch (e: InterruptedException) {
+                    Log.e(TAG, "Sleep interrupted", e)
+                }
+                
+                // Encourager le garbage collector à récupérer les ressources
+                System.gc()
+                try {
+                    Thread.sleep(100)
+                } catch (e: InterruptedException) {
+                    Log.e(TAG, "Sleep interrupted", e)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error closing previous detector: ${e.message}", e)
+            }
+        }
+        
         // Premières tentatives de détection basées sur le nom du fichier
         val modelName = modelPath.substringAfterLast("/")
         val initialType = ModelType.detectFromFilename(modelName)
@@ -38,6 +68,10 @@ class ModelDetectorFactory {
         val detector = when (initialType) {
             ModelType.YOLO_V8 -> {
                 Log.d(TAG, "Creating YOLO detector")
+                YoloModelDetector(onMessage)
+            }
+            ModelType.YOLO_V11 -> {
+                Log.d(TAG, "Creating YOLOv11 detector")
                 YoloModelDetector(onMessage)
             }
             ModelType.MOBILENET_SSD -> {
@@ -66,9 +100,14 @@ class ModelDetectorFactory {
                 // Si on a pu détecter le type après inspection des tenseurs,
                 // recréer le bon détecteur
                 Log.d(TAG, "Model type detected after inspection: ${finalType.name}")
-                return createSpecificDetector(context, modelPath, labelPath, finalType, onMessage)
+                detector.close() // Fermer le détecteur temporaire
+                val specificDetector = createSpecificDetector(context, modelPath, labelPath, finalType, onMessage)
+                lastDetectorRef = WeakReference(specificDetector)
+                return specificDetector
             }
             
+            // Stocker une référence faible au détecteur créé
+            lastDetectorRef = WeakReference(detector)
             return detector
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing detector: ${e.message}", e)
@@ -110,6 +149,7 @@ class ModelDetectorFactory {
     ): ModelDetector {
         val detector = when (modelType) {
             ModelType.YOLO_V8 -> YoloModelDetector(onMessage)
+            ModelType.YOLO_V11 -> YoloModelDetector(onMessage)
             ModelType.MOBILENET_SSD -> MobileNetSSDModelDetector(onMessage)
             ModelType.RT_DETR -> RTDETRModelDetector(onMessage)
             else -> throw IllegalArgumentException("Unsupported model type: ${modelType.name}")

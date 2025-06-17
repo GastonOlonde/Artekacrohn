@@ -86,55 +86,85 @@ abstract class BaseModelDetector : ModelDetector {
         var delegateAppliedInfo = ""
 
         // Choix d'un seul délégué à la fois pour éviter les conflits
-        val useGpu = true // Préférer GPU, changer à false pour utiliser NNAPI
+        val useGpu = DetectionConfig.USE_GPU_DELEGATE // Rendre configurable
 
         if (useGpu) {
             try {
+                // S'assurer que tout ancien délégué GPU a été fermé correctement
+                closeGpuDelegate()
+                
                 val delegateOptions = org.tensorflow.lite.gpu.GpuDelegateFactory.Options().apply {
                     setPrecisionLossAllowed(true)
                     setForceBackend(GpuDelegateFactory.Options.GpuBackend.OPENCL)
                 }
-                gpuDelegateInstance = org.tensorflow.lite.gpu.GpuDelegate(delegateOptions)
-
-                options.addDelegate(gpuDelegateInstance)
-                delegateAppliedInfo = "Using GPU Delegate."
-                Log.d("BaseModelDetector", "GPU delegate added.")
-            } catch (e: Throwable) {
-                Log.w("BaseModelDetector", "GPU Delegate creation/configuration failed. Falling back to CPU.", e)
-                gpuDelegateInstance?.close()
-                gpuDelegateInstance = null
+                
+                try {
+                    gpuDelegateInstance = org.tensorflow.lite.gpu.GpuDelegate(delegateOptions)
+                    options.addDelegate(gpuDelegateInstance)
+                    delegateAppliedInfo = "Using GPU Delegate."
+                    Log.d("BaseModelDetector", "GPU delegate added.")
+                } catch (e: Exception) {
+                    Log.e("BaseModelDetector", "Failed to initialize GPU delegate: ${e.message}. Falling back to CPU.", e)
+                    // En cas d'échec, on utilise le CPU
+                    closeGpuDelegate() // Nettoyer les ressources partiellement initialisées
+                    options.setUseNNAPI(false)
+                    options.setNumThreads(4) // Utiliser plusieurs threads CPU
+                    delegateAppliedInfo = "Using CPU with 4 threads."
+                }
+            } catch (e: Exception) {
+                Log.e("BaseModelDetector", "Error configuring GPU delegate: ${e.message}", e)
+                // Utiliser le CPU en fallback
+                options.setUseNNAPI(false)
+                options.setNumThreads(4)
+                delegateAppliedInfo = "Using CPU fallback."
             }
         } else {
+            // Configurer pour utiliser NNAPI
             try {
-                nnApiDelegateInstance = org.tensorflow.lite.nnapi.NnApiDelegate()
+                val nnApiOptions = org.tensorflow.lite.nnapi.NnApiDelegate.Options().apply {
+                    setUseNnapiCpu(true)
+                    setExecutionPreference(org.tensorflow.lite.nnapi.NnApiDelegate.Options.EXECUTION_PREFERENCE_SUSTAINED_SPEED)
+                }
+                nnApiDelegateInstance = org.tensorflow.lite.nnapi.NnApiDelegate(nnApiOptions)
                 options.addDelegate(nnApiDelegateInstance)
                 delegateAppliedInfo = "Using NNAPI Delegate."
-                Log.d("BaseModelDetector", "NNAPI delegate added.")
-            } catch (e: Throwable) {
-                Log.w("BaseModelDetector", "NNAPI Delegate creation/configuration failed. Falling back to CPU.", e)
-                nnApiDelegateInstance?.close()
-                nnApiDelegateInstance = null
+            } catch (e: Exception) {
+                Log.e("BaseModelDetector", "Failed to initialize NNAPI delegate: ${e.message}", e)
+                // En cas d'échec, utiliser le CPU
+                closeNnapiDelegate() // Nettoyer les ressources partiellement initialisées
+                options.setUseNNAPI(false)
+                options.setNumThreads(4) // Utiliser plusieurs threads CPU
+                delegateAppliedInfo = "Using CPU with 4 threads."
             }
         }
 
-        // Configuration des threads pour le CPU fallback
-        options.setNumThreads(4)
-
-        try {
-            val modelBuf = modelBuffer ?: throw IllegalStateException("Model buffer not initialized")
-            interpreter = Interpreter(modelBuf, options)
-            Log.i("BaseModelDetector", "Interpreter initialized with $delegateAppliedInfo")
-        } catch (e: Exception) {
-            // Essai de fallback sans délégués en cas d'échec
+        // Créer l'interpréteur avec les options configurées
+        modelBuffer?.let {
             try {
-                val fallbackOptions = Interpreter.Options().setNumThreads(4)
-                interpreter = Interpreter(modelBuffer!!, fallbackOptions)
-                Log.w("BaseModelDetector", "Fallback to CPU: ${e.message}")
-            } catch (fallbackEx: Exception) {
-                Log.e("BaseModelDetector", "Failed to initialize interpreter: ${fallbackEx.message}")
-                throw fallbackEx
+                interpreter = Interpreter(it, options)
+                Log.i("BaseModelDetector", "Interpreter initialized. $delegateAppliedInfo")
+            } catch (e: Exception) {
+                // Si échec avec délégué, réessayer sans délégué
+                Log.e("BaseModelDetector", "Failed to create interpreter with delegate: ${e.message}. Trying without delegate.", e)
+                
+                // Nettoyer les ressources des délégués
+                closeGpuDelegate()
+                closeNnapiDelegate()
+                
+                // Créer avec options CPU simples
+                val cpuOptions = Interpreter.Options().apply {
+                    setNumThreads(4)
+                }
+                
+                try {
+                    interpreter = Interpreter(it, cpuOptions)
+                    Log.i("BaseModelDetector", "Interpreter initialized with CPU fallback.")
+                } catch (e2: Exception) {
+                    Log.e("BaseModelDetector", "Failed to create interpreter even with CPU fallback: ${e2.message}", e2)
+                    throw e2
+                }
             }
-        }
+        } ?: throw IllegalStateException("Model buffer is null")
     }
     
     /**
@@ -285,21 +315,60 @@ abstract class BaseModelDetector : ModelDetector {
     
     override fun close() {
         try {
-            interpreter?.close()
-            interpreter = null
+            // Fermer l'interpréteur avant les délégués
+            interpreter?.let {
+                try {
+                    it.close()
+                    Log.d("BaseModelDetector", "Interpreter closed successfully")
+                } catch (e: Exception) {
+                    Log.e("BaseModelDetector", "Error closing interpreter", e)
+                } finally {
+                    interpreter = null
+                }
+            }
             
-            gpuDelegateInstance?.close()
-            gpuDelegateInstance = null
+            // Utiliser les méthodes dédiées pour fermer les délégués
+            closeGpuDelegate()
+            closeNnapiDelegate()
             
-            nnApiDelegateInstance?.close()
-            nnApiDelegateInstance = null
-            
+            // Libérer le buffer du modèle
             modelBuffer = null
             
-            // Suggestion au garbage collector
-            System.gc()
+            Log.d("BaseModelDetector", "All resources closed successfully")
         } catch (e: Exception) {
-            Log.e("BaseModelDetector", "Error closing interpreter", e)
+            Log.e("BaseModelDetector", "Error during resource cleanup", e)
+        }
+    }
+    
+    /**
+     * Ferme proprement le délégué GPU
+     */
+    private fun closeGpuDelegate() {
+        gpuDelegateInstance?.let {
+            try {
+                it.close()
+                Log.d("BaseModelDetector", "GPU delegate closed successfully")
+            } catch (e: Exception) {
+                Log.e("BaseModelDetector", "Error closing GPU delegate", e)
+            } finally {
+                gpuDelegateInstance = null
+            }
+        }
+    }
+
+    /**
+     * Ferme proprement le délégué NNAPI
+     */
+    private fun closeNnapiDelegate() {
+        nnApiDelegateInstance?.let {
+            try {
+                it.close()
+                Log.d("BaseModelDetector", "NNAPI delegate closed successfully")
+            } catch (e: Exception) {
+                Log.e("BaseModelDetector", "Error closing NNAPI delegate", e)
+            } finally {
+                nnApiDelegateInstance = null
+            }
         }
     }
     
