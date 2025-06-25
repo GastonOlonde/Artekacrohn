@@ -139,7 +139,7 @@ class MainActivity :
         confidenceThreshold = preferences.getFloat(PREF_CONFIDENCE_THRESHOLD, DetectionConfig.CONFIDENCE_THRESHOLD)
         
         // Configuration des valeurs du seuil par paliers de 0.05
-        val minThreshold = 0.1f
+        val minThreshold = 0.05f
         val maxThreshold = 0.95f
         val step = 0.05f
         

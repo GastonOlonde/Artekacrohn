@@ -79,7 +79,7 @@ abstract class BaseModelDetector : ModelDetector {
     }
     
     /**
-     * Initialise l'interpréteur TensorFlow Lite avec les délégués appropriés
+     * Initialise l'interpréteur TensorFlow Lite avec les options appropriées
      */
     protected fun initializeInterpreter() {
         val options = Interpreter.Options()
@@ -93,23 +93,34 @@ abstract class BaseModelDetector : ModelDetector {
                 // S'assurer que tout ancien délégué GPU a été fermé correctement
                 closeGpuDelegate()
                 
+                // Forcer le GC avant de créer un nouveau délégué GPU
+                System.gc()
+                try { Thread.sleep(100) } catch (ignored: InterruptedException) {}
+                
+                // Récupérer le nom du modèle pour ajuster les paramètres GPU
+                val modelName = getModelName().lowercase()
+
                 val delegateOptions = org.tensorflow.lite.gpu.GpuDelegateFactory.Options().apply {
                     setPrecisionLossAllowed(true)
                     setForceBackend(GpuDelegateFactory.Options.GpuBackend.OPENCL)
+                    setQuantizedModelsAllowed(true) // Meilleure performance pour modèles quantifiés
                 }
                 
                 try {
                     gpuDelegateInstance = org.tensorflow.lite.gpu.GpuDelegate(delegateOptions)
                     options.addDelegate(gpuDelegateInstance)
                     delegateAppliedInfo = "Using GPU Delegate."
-                    Log.d("BaseModelDetector", "GPU delegate added.")
+                    Log.d("BaseModelDetector", "GPU delegate added for $modelName")
                 } catch (e: Exception) {
-                    Log.e("BaseModelDetector", "Failed to initialize GPU delegate: ${e.message}. Falling back to CPU.", e)
+                    Log.e("BaseModelDetector", "Failed to initialize GPU delegate for $modelName: ${e.message}. Falling back to CPU.", e)
                     // En cas d'échec, on utilise le CPU
                     closeGpuDelegate() // Nettoyer les ressources partiellement initialisées
+                    System.gc() // Forcer la libération de mémoire
+                    try { Thread.sleep(100) } catch (ignored: InterruptedException) {}
+                    
                     options.setUseNNAPI(false)
                     options.setNumThreads(4) // Utiliser plusieurs threads CPU
-                    delegateAppliedInfo = "Using CPU with 4 threads."
+                    delegateAppliedInfo = "Using CPU with 4 threads (GPU init failed)."
                 }
             } catch (e: Exception) {
                 Log.e("BaseModelDetector", "Error configuring GPU delegate: ${e.message}", e)
@@ -141,22 +152,47 @@ abstract class BaseModelDetector : ModelDetector {
         // Créer l'interpréteur avec les options configurées
         modelBuffer?.let {
             try {
-                interpreter = Interpreter(it, options)
-                Log.i("BaseModelDetector", "Interpreter initialized. $delegateAppliedInfo")
-            } catch (e: Exception) {
-                // Si échec avec délégué, réessayer sans délégué
-                Log.e("BaseModelDetector", "Failed to create interpreter with delegate: ${e.message}. Trying without delegate.", e)
+                // Récupérer le nom du modèle pour le logging
+                val modelName = getModelName()
+                Log.i("BaseModelDetector", "Creating interpreter for model: $modelName with $delegateAppliedInfo")
                 
-                // Nettoyer les ressources des délégués
+                // Optimisations pour les grands modèles
+                val isLargeModel = modelName.toLowerCase().contains("yolo11")
+                if (isLargeModel) {
+                    // Pour les grands modèles comme YOLOv11
+                    val modelSizeMB = it.array().size / (1024 * 1024)
+                    Log.d("BaseModelDetector", "Large model detected ($modelSizeMB MB), applying optimizations")
+                    
+                    options.setAllowFp16PrecisionForFp32(true) // Réduire l'empreinte mémoire
+                    options.setAllowBufferHandleOutput(true) // Améliorer la gestion mémoire
+                    options.setCancellable(true) // Permettre l'annulation si nécessaire
+                }
+                
+                // Créer l'interpréteur avec options optimisées
+                interpreter = Interpreter(it, options)
+                Log.i("BaseModelDetector", "Interpreter initialized successfully. $delegateAppliedInfo")
+            } catch (e: Exception) {
+                Log.e("BaseModelDetector", "Failed to create interpreter with delegate: ${e.message}", e)
+                
+                // Nettoyer toutes les ressources
                 closeGpuDelegate()
                 closeNnapiDelegate()
                 
-                // Créer avec options CPU simples
+                // Force garbage collection
+                System.gc()
+                try { Thread.sleep(200) } catch (ignored: InterruptedException) {}
+                
+                // Réessayer avec CPU uniquement
                 val cpuOptions = Interpreter.Options().apply {
                     setNumThreads(4)
+                    // Pour les grands modèles, on peut quand même optimiser
+                    if (getModelName().toLowerCase().contains("yolo11")) {
+                        setAllowFp16PrecisionForFp32(true)
+                    }
                 }
                 
                 try {
+                    Log.i("BaseModelDetector", "Retrying with CPU-only options")
                     interpreter = Interpreter(it, cpuOptions)
                     Log.i("BaseModelDetector", "Interpreter initialized with CPU fallback.")
                 } catch (e2: Exception) {

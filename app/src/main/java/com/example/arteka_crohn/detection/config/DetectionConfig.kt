@@ -47,6 +47,8 @@ object DetectionConfig {
     const val IOU_THRESHOLD_DRAW = 0.5f // Seuil IoU pour la suppression des non-maximums (NMS)
 
     const val USE_GPU_DELEGATE = true // Utiliser le GPU pour l'inférence si disponible
+    const val APPLY_NMS_AFTER_INFERENCE = true // Appliquer la suppression des non-maximums (NMS) après l'inférence
+    const val DEFAULT_NMS_THRESHOLD = 0.5f // Seuil par défaut pour la suppression des non-maximums (NMS)
     
     // Paramètres d'affichage pour les détections
     const val PRESERVE_ASPECT_RATIO_DRAW = true

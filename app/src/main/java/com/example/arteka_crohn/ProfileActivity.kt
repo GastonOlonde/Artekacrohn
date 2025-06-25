@@ -7,10 +7,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.auth.FirebaseAuth
-import com.example.arteka_crohn.segmentation.InstanceSegmentation
 
 class ProfileActivity : AppCompatActivity() {
-    private var instanceSegmentation: InstanceSegmentation? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_profile)
@@ -37,16 +35,16 @@ class ProfileActivity : AppCompatActivity() {
                     if (task.isSuccessful) {
                         val intent = Intent(this, WelcomeActivity::class.java)
                         intent.flags =
-                                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         startActivity(intent)
                         bottomSheet.dismiss()
                     } else {
                         Toast.makeText(
-                                        this,
-                                        "Erreur lors de la suppression du compte. Veuillez vous reconnecter et réessayer.",
-                                        Toast.LENGTH_LONG
-                                )
-                                .show()
+                            this,
+                            "Erreur lors de la suppression du compte. Veuillez vous reconnecter et réessayer.",
+                            Toast.LENGTH_LONG
+                        )
+                            .show()
                     }
                 }
             }
@@ -55,15 +53,14 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         val bottomNavigation =
-                findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
-                        R.id.bottom_navigation
-                )
+            findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
+                R.id.bottom_navigation
+            )
         bottomNavigation.selectedItemId = R.id.action_profile
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.action_profile -> true
                 R.id.action_models -> {
-                    cleanupModel()
                     startActivity(Intent(this, ModelSelectionActivity::class.java))
 
                     // Utilisation de overridePendingTransition pour la compatibilité avec toutes
@@ -74,8 +71,8 @@ class ProfileActivity : AppCompatActivity() {
                     finish()
                     true
                 }
+
                 R.id.action_camera -> {
-                    cleanupModel()
                     startActivity(Intent(this, MainActivity::class.java))
 
                     // Utilisation de overridePendingTransition pour la compatibilité avec toutes
@@ -86,12 +83,9 @@ class ProfileActivity : AppCompatActivity() {
                     finish()
                     true
                 }
+
                 else -> false
             }
         }
-    }
-
-    private fun cleanupModel() {
-        instanceSegmentation?.close()
     }
 }
