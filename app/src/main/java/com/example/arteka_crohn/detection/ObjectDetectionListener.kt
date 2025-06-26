@@ -1,6 +1,6 @@
 package com.example.arteka_crohn.detection
 
-import com.example.arteka_crohn.Output0
+import com.example.arteka_crohn.data.Output0
 
 /**
  * Interface pour recevoir les callbacks de détection d'objets.

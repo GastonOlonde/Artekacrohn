@@ -1,15 +1,16 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.model
 
 import android.os.Bundle
 import android.content.Intent
-import android.widget.TextView
 import android.view.View
-import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.arteka_crohn.R
 import android.widget.ImageView
+import com.example.arteka_crohn.MainActivity
+import com.example.arteka_crohn.R
+import com.example.arteka_crohn.profile.ProfileActivity
+import com.google.android.material.bottomnavigation.BottomNavigationView
 
 
 class ModelSelectionActivity : AppCompatActivity() {
@@ -39,7 +40,7 @@ class ModelSelectionActivity : AppCompatActivity() {
         // Configuration des indicateurs de défilement
         setupScrollIndicators(layoutManager)
 
-        val bottomNavigation = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottom_navigation)
+        val bottomNavigation = findViewById<BottomNavigationView>(R.id.bottom_navigation)
         bottomNavigation.selectedItemId = R.id.action_models
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {

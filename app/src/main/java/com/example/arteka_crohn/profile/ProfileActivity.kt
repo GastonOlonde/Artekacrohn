@@ -1,4 +1,4 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.profile
 
 import android.content.Intent
 import android.os.Bundle
@@ -6,6 +6,12 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.arteka_crohn.MainActivity
+import com.example.arteka_crohn.model.ModelSelectionActivity
+import com.example.arteka_crohn.R
+import com.example.arteka_crohn.auth.WelcomeActivity
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.firebase.auth.FirebaseAuth
 
 class ProfileActivity : AppCompatActivity() {
@@ -26,7 +32,7 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         findViewById<TextView>(R.id.tvDeleteAccount).setOnClickListener {
-            val bottomSheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+            val bottomSheet = BottomSheetDialog(this)
             val view = layoutInflater.inflate(R.layout.bottomsheet_delete_account, null)
             bottomSheet.setContentView(view)
 
@@ -53,7 +59,7 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         val bottomNavigation =
-            findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
+            findViewById<BottomNavigationView>(
                 R.id.bottom_navigation
             )
         bottomNavigation.selectedItemId = R.id.action_profile

@@ -1,8 +1,9 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.auth
 
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Patterns
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,6 +11,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import com.example.arteka_crohn.R
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 class PasswordResetBottomSheetDialogFragment : BottomSheetDialogFragment() {
@@ -33,7 +35,7 @@ class PasswordResetBottomSheetDialogFragment : BottomSheetDialogFragment() {
         emailInput.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 val email = s.toString().trim()
-                val isValidEmail = android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+                val isValidEmail = Patterns.EMAIL_ADDRESS.matcher(email).matches()
                 sendButton.isEnabled = isValidEmail
     
                 if (!isValidEmail && email.isNotEmpty()) {

@@ -1,6 +1,6 @@
 package com.example.arteka_crohn.detection.postprocessing
 
-import com.example.arteka_crohn.Output0
+import com.example.arteka_crohn.data.Output0
 
 /**
  * Interface pour le post-traitement des résultats de détection

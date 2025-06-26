@@ -1,19 +1,29 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.auth
 
-import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import android.util.Patterns
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.Animation
+import android.view.animation.AnimationUtils
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.example.arteka_crohn.MainActivity
+import com.example.arteka_crohn.R
+import com.example.arteka_crohn.ui.dialog.SimpleAlertDialogFragment
 import com.google.firebase.auth.FirebaseAuth
 import com.example.arteka_crohn.databinding.ActivityRegisterBinding
+import com.google.firebase.auth.FirebaseAuthException
 
 class RegisterActivity : AppCompatActivity() {
     private lateinit var binding: ActivityRegisterBinding
@@ -21,20 +31,20 @@ class RegisterActivity : AppCompatActivity() {
     private lateinit var emailEditText: EditText
     private lateinit var passwordEditText: EditText
     private lateinit var confirmPasswordEditText: EditText
-    private lateinit var emailErrorTextView: android.widget.TextView
-    private lateinit var passwordErrorTextView: android.widget.TextView
-    private lateinit var confirmPasswordErrorTextView: android.widget.TextView
+    private lateinit var emailErrorTextView: TextView
+    private lateinit var passwordErrorTextView: TextView
+    private lateinit var confirmPasswordErrorTextView: TextView
     private lateinit var registerButton: Button
     private lateinit var loginButton: Button
     private lateinit var progressBar: ImageView
-    private lateinit var togglePasswordImageView: android.widget.ImageView
-    private lateinit var toggleConfirmPasswordImageView: android.widget.ImageView
+    private lateinit var togglePasswordImageView: ImageView
+    private lateinit var toggleConfirmPasswordImageView: ImageView
     private var isPasswordVisible = false
     private var isConfirmPasswordVisible = false
-    private lateinit var spinnerAnimation: android.view.animation.Animation
+    private lateinit var spinnerAnimation: Animation
     
     private fun showAlertDialog(title: String, message: String, errorCode: String? = null) {
-        val dialog = SimpleAlertDialogFragment.newInstance(title, message, errorCode)
+        val dialog = SimpleAlertDialogFragment.Companion.newInstance(title, message, errorCode)
         dialog.show(supportFragmentManager, "SimpleAlertDialog")
     }
 
@@ -57,14 +67,14 @@ class RegisterActivity : AppCompatActivity() {
         toggleConfirmPasswordImageView = binding.imageViewToggleConfirmPassword
         
         // Initialisation de l'animation du spinner
-        spinnerAnimation = android.view.animation.AnimationUtils.loadAnimation(this, R.anim.logo_spinner_rotation)
+        spinnerAnimation = AnimationUtils.loadAnimation(this, R.anim.logo_spinner_rotation)
 
         // Désactive le bouton d'inscription par défaut
         registerButton.isEnabled = false
 
         // TextWatcher pour vérifier les champs email et mot de passe
-        val textWatcher = object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) {
+        val textWatcher = object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
                 validateFields()
             }
 
@@ -104,11 +114,11 @@ class RegisterActivity : AppCompatActivity() {
     private fun togglePasswordVisibility(editText: EditText, isVisible: Boolean, toggleView: ImageView) {
         if (isVisible) {
             // Afficher le mot de passe
-            editText.transformationMethod = android.text.method.HideReturnsTransformationMethod.getInstance()
+            editText.transformationMethod = HideReturnsTransformationMethod.getInstance()
             toggleView.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
         } else {
             // Masquer le mot de passe
-            editText.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+            editText.transformationMethod = PasswordTransformationMethod.getInstance()
             toggleView.setImageResource(android.R.drawable.ic_menu_view)
         }
         // Placer le curseur à la fin
@@ -171,7 +181,7 @@ class RegisterActivity : AppCompatActivity() {
                 } else {
                     // Gestion des erreurs
                     val exception = task.exception
-                    val errorCode = (exception as? com.google.firebase.auth.FirebaseAuthException)?.errorCode
+                    val errorCode = (exception as? FirebaseAuthException)?.errorCode
                     val errorMessage = exception?.localizedMessage ?: "Erreur inconnue"
                     showAlertDialog("Erreur d'inscription", errorMessage, errorCode)
                 }
@@ -204,7 +214,7 @@ class RegisterActivity : AppCompatActivity() {
     }
 
     private fun hideKeyboard() {
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         currentFocus?.let { view ->
             imm.hideSoftInputFromWindow(view.windowToken, 0)
             view.clearFocus()

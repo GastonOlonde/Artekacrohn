@@ -1,4 +1,4 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.model
 
 import android.content.Context
 

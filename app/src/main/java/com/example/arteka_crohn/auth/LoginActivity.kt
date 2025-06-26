@@ -1,42 +1,50 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.auth
 
-import android.content.Context
 import android.content.Intent
 import android.graphics.Rect    
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import android.util.Patterns
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.Animation
+import android.view.animation.AnimationUtils
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.example.arteka_crohn.MainActivity
+import com.example.arteka_crohn.R
+import com.example.arteka_crohn.ui.dialog.SimpleAlertDialogFragment
 import com.google.firebase.auth.FirebaseAuth
 import com.example.arteka_crohn.databinding.ActivityLoginBinding
+import com.google.firebase.auth.FirebaseAuthException
 
 class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
     private fun showAlertDialog(title: String, message: String, errorCode: String? = null) {
-        val dialog = SimpleAlertDialogFragment.newInstance(title, message, errorCode)
+        val dialog = SimpleAlertDialogFragment.Companion.newInstance(title, message, errorCode)
         dialog.show(supportFragmentManager, "SimpleAlertDialog")
     }
     private lateinit var auth: FirebaseAuth
     private lateinit var emailEditText: EditText
     private lateinit var passwordEditText: EditText
-    private lateinit var emailErrorTextView: android.widget.TextView
-    private lateinit var passwordErrorTextView: android.widget.TextView
+    private lateinit var emailErrorTextView: TextView
+    private lateinit var passwordErrorTextView: TextView
     private lateinit var loginButton: Button
     private lateinit var signupButton: Button
     private lateinit var forgotPasswordButton: Button
     private lateinit var progressBar: ImageView
-    private lateinit var togglePasswordImageView: android.widget.ImageView
-    private lateinit var scrollView: android.widget.ScrollView
+    private lateinit var togglePasswordImageView: ImageView
+    private lateinit var scrollView: ScrollView
     private var isPasswordVisible = false
-    private lateinit var spinnerAnimation: android.view.animation.Animation
+    private lateinit var spinnerAnimation: Animation
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,7 +64,7 @@ class LoginActivity : AppCompatActivity() {
         scrollView = binding.scrollViewLogin
         
         // Initialisation de l'animation du spinner
-        spinnerAnimation = android.view.animation.AnimationUtils.loadAnimation(this, R.anim.logo_spinner_rotation)
+        spinnerAnimation = AnimationUtils.loadAnimation(this, R.anim.logo_spinner_rotation)
 
         forgotPasswordButton.setOnClickListener {
             val email = emailEditText.text.toString().trim()
@@ -72,32 +80,32 @@ class LoginActivity : AppCompatActivity() {
 
         // Ajoute un TextWatcher pour vérifier l'existence de l'email
         // Active le bouton Connexion seulement si email et mot de passe sont valides
-        val watcher = object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) {
+        val watcher = object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
                 val email = emailEditText.text.toString().trim()
                 val password = passwordEditText.text.toString()
 
                 // Email
-                if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                if (email.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                     emailErrorTextView.text = "Format d'email invalide"
-                    emailErrorTextView.visibility = android.view.View.VISIBLE
+                    emailErrorTextView.visibility = View.VISIBLE
                 } else {
                     emailErrorTextView.text = ""
-                    emailErrorTextView.visibility = android.view.View.GONE
+                    emailErrorTextView.visibility = View.GONE
                 }
 
                 // Mot de passe
                 if (password.length < 6) {
                     passwordErrorTextView.text = "Le mot de passe doit contenir au moins 6 caractères"
-                    passwordErrorTextView.visibility = android.view.View.VISIBLE
+                    passwordErrorTextView.visibility = View.VISIBLE
                 } else {
                     passwordErrorTextView.text = ""
-                    passwordErrorTextView.visibility = android.view.View.GONE
+                    passwordErrorTextView.visibility = View.GONE
                 }
 
                 // Active le bouton de connexion si les deux champs sont valides
-                loginButton.isEnabled = emailErrorTextView.visibility == android.view.View.GONE && 
-                                        passwordErrorTextView.visibility == android.view.View.GONE &&
+                loginButton.isEnabled = emailErrorTextView.visibility == View.GONE &&
+                                        passwordErrorTextView.visibility == View.GONE &&
                                         email.isNotEmpty() &&
                                         password.isNotEmpty()
             }
@@ -124,11 +132,11 @@ class LoginActivity : AppCompatActivity() {
             isPasswordVisible = !isPasswordVisible
             if (isPasswordVisible) {
                 // Afficher le mot de passe
-                passwordEditText.transformationMethod = android.text.method.HideReturnsTransformationMethod.getInstance()
+                passwordEditText.transformationMethod = HideReturnsTransformationMethod.getInstance()
                 togglePasswordImageView.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
             } else {
                 // Masquer le mot de passe
-                passwordEditText.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+                passwordEditText.transformationMethod = PasswordTransformationMethod.getInstance()
                 togglePasswordImageView.setImageResource(android.R.drawable.ic_menu_view)
             }
             // Placer le curseur à la fin
@@ -160,7 +168,7 @@ class LoginActivity : AppCompatActivity() {
                     showAlertDialog("Email envoyé", "Un email de réinitialisation a été envoyé à $email")
                 } else {
                     val exception = task.exception
-                    val errorCode = (exception as? com.google.firebase.auth.FirebaseAuthException)?.errorCode
+                    val errorCode = (exception as? FirebaseAuthException)?.errorCode
                     val errorMessage = exception?.localizedMessage ?: "Erreur inconnue"
                     showAlertDialog("Erreur", errorMessage, errorCode)
                 }
@@ -236,7 +244,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun hideKeyboard() {
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         currentFocus?.let { view ->
             imm.hideSoftInputFromWindow(view.windowToken, 0)
             view.clearFocus()

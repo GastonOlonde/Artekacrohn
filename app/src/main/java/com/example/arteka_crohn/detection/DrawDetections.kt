@@ -10,7 +10,7 @@ import android.graphics.Typeface
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
-import com.example.arteka_crohn.Output0
+import com.example.arteka_crohn.data.Output0
 import com.example.arteka_crohn.R
 import com.example.arteka_crohn.detection.config.DetectionConfig
 

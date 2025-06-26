@@ -2,11 +2,10 @@ package com.example.arteka_crohn.detection.model
 
 import android.content.Context
 import android.util.Log
-import com.example.arteka_crohn.MetaData.TEMP_CLASSES
-import com.example.arteka_crohn.MetaData.extractNamesFromLabelFile
-import com.example.arteka_crohn.MetaData.extractNamesFromMetadata
+import com.example.arteka_crohn.data.MetaData.TEMP_CLASSES
+import com.example.arteka_crohn.data.MetaData.extractNamesFromLabelFile
+import com.example.arteka_crohn.data.MetaData.extractNamesFromMetadata
 import com.example.arteka_crohn.detection.config.DetectionConfig
-import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegateFactory
 import org.tensorflow.lite.support.common.FileUtil

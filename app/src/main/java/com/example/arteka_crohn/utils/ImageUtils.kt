@@ -1,4 +1,4 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.utils
 
 import kotlin.math.exp
 

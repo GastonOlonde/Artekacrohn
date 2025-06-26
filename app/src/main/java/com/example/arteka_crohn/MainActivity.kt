@@ -6,8 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.widget.SeekBar
@@ -21,14 +19,17 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
-import com.example.arteka_crohn.Output0
+import com.example.arteka_crohn.auth.LoginActivity
 import com.example.arteka_crohn.camera.CameraManager
 import com.example.arteka_crohn.camera.ImageAnalysisCallback
+import com.example.arteka_crohn.data.Output0
 import com.example.arteka_crohn.databinding.ActivityMainBinding
 import com.example.arteka_crohn.detection.DrawDetections
 import com.example.arteka_crohn.detection.DetectionManager
 import com.example.arteka_crohn.detection.ObjectDetectionListener
 import com.example.arteka_crohn.detection.config.DetectionConfig
+import com.example.arteka_crohn.model.ModelSelectionActivity
+import com.example.arteka_crohn.profile.ProfileActivity
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

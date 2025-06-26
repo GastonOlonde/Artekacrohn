@@ -1,4 +1,4 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.data
 data class Output0(
         val x1: Float,
         val y1: Float,

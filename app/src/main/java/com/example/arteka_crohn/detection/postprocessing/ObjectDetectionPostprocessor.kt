@@ -1,7 +1,7 @@
 package com.example.arteka_crohn.detection.postprocessing
 
 import android.util.Log
-import com.example.arteka_crohn.Output0
+import com.example.arteka_crohn.data.Output0
 import com.example.arteka_crohn.detection.config.DetectionConfig
 import com.example.arteka_crohn.detection.model.TensorFlowLiteDetectionModel
 import kotlin.math.exp

@@ -4,15 +4,12 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
 import android.util.Log
-import com.example.arteka_crohn.Output0
 import com.example.arteka_crohn.detection.config.DetectionConfig
 import com.example.arteka_crohn.detection.model.ModelDetector
 import com.example.arteka_crohn.detection.model.ModelDetectorFactory
 import com.example.arteka_crohn.detection.model.ModelType
 import com.example.arteka_crohn.detection.preprocessing.DetectionImagePreprocessor
 import com.example.arteka_crohn.detection.preprocessing.ImagePreprocessor
-import com.example.arteka_crohn.detection.postprocessing.DetectionPostprocessor
-import com.example.arteka_crohn.detection.postprocessing.ObjectDetectionPostprocessor
 
 /**
  * Classe principale de détection d'objets qui coordonne les différents composants

@@ -1,4 +1,4 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.utils
 
 import android.content.Context
 import android.view.Gravity
@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import com.example.arteka_crohn.R
 
 fun showModernToast(context: Context, message: String) {
     val inflater = LayoutInflater.from(context)

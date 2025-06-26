@@ -1,4 +1,4 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.data
 
 import android.content.Context
 import org.tensorflow.lite.support.metadata.MetadataExtractor

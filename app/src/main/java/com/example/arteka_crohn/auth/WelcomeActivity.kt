@@ -1,10 +1,11 @@
-package com.example.arteka_crohn
+package com.example.arteka_crohn.auth
 
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.example.arteka_crohn.MainActivity
 import com.example.arteka_crohn.databinding.ActivityWelcomeBinding
 import com.google.firebase.auth.FirebaseAuth
 
